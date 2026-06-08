@@ -1213,9 +1213,8 @@
       </div>
       <div class="admin-form"><h3 style="color:#ffd65a;margin:0 0 15px">🎮 游戏管理（留空中奖率使用全局设定）</h3>${gamesHtml}</div>
       <div class="admin-form"><h3 style="color:#ffd65a;margin:0 0 15px">👤 用户管理</h3>
-        <div style="display:flex;gap:8px;margin-bottom:10px">
-          <input id="userSearchInput" placeholder="搜索玩家昵称或ID" style="flex:1;border:1px solid #594d7a;border-radius:10px;padding:8px 12px;background:#3b3052;color:white;pointer-events:auto;-webkit-user-select:text;user-select:text" autocomplete="off">
-          <button id="userSearchBtn" style="background:#5b4d8a;color:white;border:none;border-radius:10px;padding:8px 16px;cursor:pointer;font-weight:700;font-size:13px;white-space:nowrap">搜索</button>
+        <div style="margin-bottom:10px">
+          <button id="userSearchBtn" style="background:#5b4d8a;color:white;border:none;border-radius:10px;padding:10px 20px;cursor:pointer;font-weight:700;font-size:14px;width:100%">🔍 搜索玩家</button>
         </div>
         <div id="userSearchResults"></div>
       </div>
@@ -1237,45 +1236,50 @@
     });
     $('#adminLogout').addEventListener('click', () => { adminToken = ''; renderAdminLogin(); });
 
-    // User search
-    $('#userSearchBtn').addEventListener('click', searchUsers);
-    $('#userSearchInput').addEventListener('keydown', e => { if (e.key === 'Enter') searchUsers(); });
-
-    async function searchUsers() {
-      const q = $('#userSearchInput').value.trim();
+    // User search - use prompt() to avoid input focus issues
+    async function doSearch(q) {
       try {
-        const data = await apiAdmin(`/admin/users?q=${encodeURIComponent(q)}`);
+        const data = await apiAdmin(`/admin/users?q=${encodeURIComponent(q || '')}`);
         const users = data.users || [];
         $('#userSearchResults').innerHTML = users.length === 0
-          ? '<div style="color:#9b8ab8;font-size:12px;text-align:center;padding:10px">未找到玩家</div>'
-          : users.map(u => `<div class="rank-row" style="padding:12px 8px">
-              <span style="font-weight:900;font-size:13px;color:#ffd65a">${escapeHtml(u.nickname)}</span>
-              <span style="font-size:10px;color:#9b8ab8">${u.playerId} · Lv${u.level} · 🪙${u.coins}</span>
+          ? '<div style="color:#9b8ab8;font-size:12px;text-align:center;padding:15px">未找到玩家</div>'
+          : users.map(u => `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 8px;border-bottom:1px solid #3b3052">
+              <div>
+                <div style="font-weight:900;font-size:13px;color:#ffd65a">${escapeHtml(u.nickname)}</div>
+                <div style="font-size:10px;color:#9b8ab8">${u.playerId} · Lv${u.level} · 🪙${u.coins} · 倍率${u.rateMultiplier||1}x</div>
+              </div>
               <span style="display:flex;gap:4px">
-                <button class="page-btn" style="background:#22c55e;color:white;font-size:10px" onclick="window._giveCoins('${u.playerId}')">+币</button>
-                <button class="page-btn" style="background:#f39c12;color:white;font-size:10px" onclick="window._setRate('${u.playerId}','${u.rateMultiplier||1}')">率:${u.rateMultiplier||1}x</button>
+                <button style="background:#22c55e;color:white;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;font-weight:700" onclick="window._giveCoins('${u.playerId}')">+币</button>
+                <button style="background:#f39c12;color:white;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;font-weight:700" onclick="window._setRate('${u.playerId}','${u.rateMultiplier||1}')">倍率</button>
               </span>
             </div>`).join('');
-      } catch (e) { $('#userSearchResults').innerHTML = '<div style="color:#e74c3c;font-size:12px">搜索失败</div>'; }
+      } catch (e) { $('#userSearchResults').innerHTML = '<div style="color:#e74c3c;font-size:12px;padding:10px">搜索失败: '+escapeHtml(e.message)+'</div>'; }
     }
+
+    $('#userSearchBtn').addEventListener('click', () => {
+      const q = prompt('输入玩家昵称或ID（留空显示全部）:');
+      if (q !== null) doSearch(q);
+    });
+    // Also auto-load top users
+    doSearch('');
 
     // Global helpers for user management buttons
     window._giveCoins = async function(pid) {
       const amount = parseInt(prompt(`给 ${pid} 增加爽币数量:`, '100'));
-      if (!amount) return;
+      if (!amount || isNaN(amount)) return;
       try {
         const data = await apiAdmin(`/admin/users/${pid}/coins`, { method: 'POST', body: JSON.stringify({ amount }) });
-        toast(`${data.player.nickname} 爽币 +${amount}，当前 ${data.player.coins}`);
-        searchUsers();
+        toast(`${data.player.nickname} 爽币 ${amount > 0 ? '+' : ''}${amount}，当前 ${data.player.coins}`);
+        doSearch('');
       } catch (e) { toast('操作失败: ' + e.message); }
     };
     window._setRate = async function(pid, currentRate) {
-      const rate = parseFloat(prompt(`${pid} 中奖倍率 (0-10，当前 ${currentRate}):`, currentRate));
+      const rate = parseFloat(prompt(`${pid} 当前中奖倍率 ${currentRate}x，输入新倍率 (0-10):`, currentRate));
       if (isNaN(rate)) return;
       try {
         await apiAdmin(`/admin/users/${pid}/winrate`, { method: 'POST', body: JSON.stringify({ rate }) });
         toast(`${pid} 中奖倍率已设为 ${rate}x`);
-        searchUsers();
+        doSearch('');
       } catch (e) { toast('操作失败: ' + e.message); }
     };
   }
