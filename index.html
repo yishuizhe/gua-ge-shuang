@@ -156,8 +156,8 @@
     .claw-btn{border:0;border-radius:14px;padding:12px 28px;background:#4ade80;color:#1a3a1a;font-weight:1000;cursor:pointer;font-size:15px}
     .claw-btn:disabled{opacity:.5;cursor:not-allowed}
     /* Pagination */
-    .page-controls{display:flex;align-items:center;gap:6px;justify-content:center;padding:8px 10px}
-    .page-btn{border:1px solid #d4b896;background:#fff;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:11px;font-weight:700;color:#7a4e35}
+    .page-controls{display:flex;align-items:center;gap:4px;justify-content:center;padding:6px 8px;flex-wrap:wrap}
+    .page-btn{border:1px solid #d4b896;background:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:10px;font-weight:700;color:#7a4e35;min-width:28px;text-align:center}
     .page-btn:disabled{opacity:.4;cursor:not-allowed}
     .page-btn.active{background:#d71936;color:white;border-color:#d71936}
     .page-info{font-size:10px;color:#a98772;min-width:60px;text-align:center}
@@ -493,13 +493,24 @@
     $('#recordsInfo').textContent = `共 ${recordsTotal || state.records.length} 条 · 第 ${recordsPage}/${recordsPages} 页`;
   }
 
+  function pageButtons(cur, total, prefix) {
+    if (total <= 1) return '';
+    const btns = [];
+    btns.push(`<button class="page-btn" data-${prefix}="${Math.max(1, cur - 1)}" ${cur <= 1 ? 'disabled' : ''}>◀</button>`);
+    const maxShow = 5;
+    let start = Math.max(1, cur - Math.floor(maxShow / 2));
+    let end = Math.min(total, start + maxShow - 1);
+    if (end - start < maxShow - 1) start = Math.max(1, end - maxShow + 1);
+    if (start > 1) { btns.push(`<button class="page-btn" data-${prefix}="1">1</button>`); if (start > 2) btns.push('<span style="font-size:10px;color:#b3937e">…</span>'); }
+    for (let i = start; i <= end; i++) btns.push(`<button class="page-btn ${i === cur ? 'active' : ''}" data-${prefix}="${i}">${i}</button>`);
+    if (end < total) { if (end < total - 1) btns.push('<span style="font-size:10px;color:#b3937e">…</span>'); btns.push(`<button class="page-btn" data-${prefix}="${total}">${total}</button>`); }
+    btns.push(`<button class="page-btn" data-${prefix}="${Math.min(total, cur + 1)}" ${cur >= total ? 'disabled' : ''}>▶</button>`);
+    return btns.join('');
+  }
+
   function renderRecords() {
     $('#records').innerHTML = state.records.length ? state.records.map(r => `<div class="record"><div class="record-icon">${r.icon}</div><div class="record-main"><div class="record-name">${r.name}</div><div class="record-time">${r.time}</div></div><div class="record-win">${r.win ? ('+' + formatPrize(r.win)) : '未中'}</div></div>`).join('') : '<div class="record-empty">刮开第一张票<br>好运记录会出现在这里</div>';
-    let ph = '';
-    for (let i = 1; i <= recordsPages; i++) {
-      ph += `<button class="page-btn ${i === recordsPage ? 'active' : ''}" data-rpage="${i}">${i}</button>`;
-    }
-    $('#recordsPages').innerHTML = recordsPages > 1 ? `<button class="page-btn" data-rpage="${Math.max(1, recordsPage - 1)}" ${recordsPage <= 1 ? 'disabled' : ''}>◀</button>${ph}<button class="page-btn" data-rpage="${Math.min(recordsPages, recordsPage + 1)}" ${recordsPage >= recordsPages ? 'disabled' : ''}>▶</button>` : '';
+    $('#recordsPages').innerHTML = pageButtons(recordsPage, recordsPages, 'rpage');
   }
 
   function renderRanks() {
@@ -508,11 +519,7 @@
     const html = leaderboard.length ? leaderboard.map((p, i) => `<div class="rank-row"><div class="rank-no ${i < 3 ? 'top' : ''}">${medals[i] || ((leaderboardPage - 1) * 10 + i + 1)}</div><div class="rank-name">${escapeHtml(p.nickname)}<small>${p.playerId} · ${p.played} 张</small></div><div class="rank-score">${isCoins ? '🪙'+formatPrize(p.coins||0) : 'Lv.'+p.level}</div></div>`).join('') : '<div class="record-empty">还没有排行数据</div>';
     $('#rankList').innerHTML = html;
     $('#rankModalList').innerHTML = html;
-    let ph = '';
-    for (let i = 1; i <= leaderboardPages; i++) {
-      ph += `<button class="page-btn ${i === leaderboardPage ? 'active' : ''}" data-lpage="${i}">${i}</button>`;
-    }
-    const pg = leaderboardPages > 1 ? `<button class="page-btn" data-lpage="${Math.max(1, leaderboardPage - 1)}" ${leaderboardPage <= 1 ? 'disabled' : ''}>◀</button>${ph}<button class="page-btn" data-lpage="${Math.min(leaderboardPages, leaderboardPage + 1)}" ${leaderboardPage >= leaderboardPages ? 'disabled' : ''}>▶</button>` : '';
+    const pg = pageButtons(leaderboardPage, leaderboardPages, 'lpage');
     $('#rankPages').innerHTML = pg;
     $('#rankModalPages').innerHTML = pg;
     $('#rankModalList').innerHTML = html;
