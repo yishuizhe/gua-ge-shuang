@@ -198,7 +198,7 @@ def records_for(conn, player_id, page=1, limit=10):
             "icon": TYPES[row["ticket_type"]]["icon"],
             "name": TYPES[row["ticket_type"]]["name"],
             "win": row["win"],
-            "time": time.strftime("%H:%M", time.localtime(row["created_at"])),
+            "time": time.strftime("%H:%M", time.gmtime(row["created_at"] + 8 * 3600)),
         }
         for row in rows
     ], total
@@ -217,16 +217,6 @@ def check_rate_limit(player_row, client_ip):
     if last and (now - last) < 2.0:
         remaining = round(2.0 - (now - last), 1)
         return False, f"请稍候 {remaining} 秒后再购买"
-
-    # per-player daily limit: 200 tickets
-    today_start = now - (now % 86400)
-    with db() as conn:
-        count = conn.execute(
-            "SELECT COUNT(*) FROM tickets WHERE player_id=? AND created_at >= ?",
-            (player_row["id"], int(today_start)),
-        ).fetchone()[0]
-    if count >= 200:
-        return False, "今日购票已达上限 (200张)"
 
     # per-IP rate limit: 30 requests per minute
     cutoff = now - 60
