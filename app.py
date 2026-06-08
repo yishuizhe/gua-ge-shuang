@@ -239,20 +239,50 @@ def check_rate_limit(player_row, client_ip):
 
 
 # ---------- payout engine ----------
-def roll_payout(ticket_type, streak):
-    """Server-authoritative payout with configurable tiers."""
+def roll_payout(ticket_type, streak, player_public_id=None):
+    """Server-authoritative payout with configurable tiers and per-game/per-user overrides."""
     cfg = get_config()
     cost = TYPES[ticket_type]["cost"]
     pity = min(cfg.get("pity_max", 0.04), streak * cfg.get("pity_step", 0.002))
-    roll = random.random()
 
-    lose_p = cfg.get("lose", 0.614) - pity
-    be_p = lose_p + cfg.get("break_even", 0.23)
-    small_p = be_p + cfg.get("small", 0.10)
-    medium_p = small_p + cfg.get("medium", 0.04)
-    big_p = medium_p + cfg.get("big", 0.009)
-    super_p = big_p + cfg.get("super", 0.0008)
-    diamond_p = super_p + cfg.get("diamond", 0.00015)
+    # Per-game win rate override
+    game_rate_key = f"game_{ticket_type}_winrate"
+    game_rate = cfg.get(game_rate_key)
+
+    # Per-user rate multiplier
+    user_mult = 1.0
+    if player_public_id:
+        user_mult = float(cfg.get(f"user_{player_public_id}_rate", "1.0"))
+
+    if game_rate is not None:
+        # game_rate is total win probability (0-1), distribute proportionally
+        base_win = 1.0 - cfg.get("lose", 0.614) + pity
+        scale = game_rate / max(base_win, 0.001) if base_win > 0 else 1.0
+        lose_p = 1.0 - game_rate
+    else:
+        scale = 1.0
+        lose_p = cfg.get("lose", 0.614) - pity
+
+    # Apply user multiplier to win chances
+    if user_mult != 1.0:
+        scale *= user_mult
+        lose_p = max(0.05, lose_p - (user_mult - 1.0) * 0.1)
+
+    roll = random.random()
+    be_s = cfg.get("break_even", 0.23) * scale
+    sm_s = cfg.get("small", 0.10) * scale
+    md_s = cfg.get("medium", 0.04) * scale
+    bg_s = cfg.get("big", 0.009) * scale
+    sp_s = cfg.get("super", 0.0008) * scale
+    dm_s = cfg.get("diamond", 0.00015) * scale
+    lg_s = cfg.get("legend", 0.00005) * scale
+
+    be_p = lose_p + be_s
+    small_p = be_p + sm_s
+    medium_p = small_p + md_s
+    big_p = medium_p + bg_s
+    super_p = big_p + sp_s
+    diamond_p = super_p + dm_s
 
     if roll < lose_p:
         return 0, "未中奖"
@@ -272,14 +302,14 @@ def roll_payout(ticket_type, streak):
 
 
 # ---------- ticket generators ----------
-def generate_ticket(ticket_type, streak):
+def generate_ticket(ticket_type, streak, player_public_id=None):
     kind = TYPES[ticket_type]["kind"]
     cost = TYPES[ticket_type]["cost"]
     cells, winning = [], []
 
     # ---- Blackjack (21点) ----
     if kind == "blackjack":
-        win_base, prize_tier = roll_payout(ticket_type, streak)
+        win_base, prize_tier = roll_payout(ticket_type, streak, player_public_id)
         deck = [1,2,3,4,5,6,7,8,9,10,10,10,10] * 4
         random.shuffle(deck)
         player_hand = [deck.pop(), deck.pop()]
@@ -324,7 +354,7 @@ def generate_ticket(ticket_type, streak):
         }, win_amount
 
     # ---- existing scratch card types ----
-    win, prize_tier = roll_payout(ticket_type, streak)
+    win, prize_tier = roll_payout(ticket_type, streak, player_public_id)
 
     if kind == "match":
         ordinary = [
@@ -399,7 +429,7 @@ def generate_ticket(ticket_type, streak):
 
     # ---- new: SSQ (双色球) ----
     elif kind == "ssq":
-        win, prize_tier = roll_payout(ticket_type, streak)
+        win, prize_tier = roll_payout(ticket_type, streak, player_public_id)
         # Generate player numbers and winning numbers
         player_reds = sorted(random.sample(range(1, 34), 6))
         player_blue = random.randint(1, 16)
@@ -423,7 +453,7 @@ def generate_ticket(ticket_type, streak):
 
     # ---- new: baccarat ----
     elif kind == "baccarat":
-        win, prize_tier = roll_payout(ticket_type, streak)
+        win, prize_tier = roll_payout(ticket_type, streak, player_public_id)
         # Simulate a hand
         player_hand = [random.randint(1, 9), random.randint(1, 9)]
         banker_hand = [random.randint(1, 9), random.randint(1, 9)]
@@ -457,7 +487,7 @@ def generate_ticket(ticket_type, streak):
         bet_type = "big" if is_big else "small"
         if is_triple:
             bet_type = "triple"
-        win, prize_tier = roll_payout(ticket_type, streak)
+        win, prize_tier = roll_payout(ticket_type, streak, player_public_id)
         if not win:
             # force wrong bet hint
             bet_type = ""
@@ -506,7 +536,7 @@ def generate_ticket(ticket_type, streak):
     elif kind == "pinball":
         slot_payouts = [0, cost, cost, cost * 2, cost * 2, cost * 3, cost * 5, cost * 10]
         slot_labels = ["空", "回本", "回本", "小奖", "小奖", "中奖", "大奖", "超级"]
-        win, prize_tier = roll_payout(ticket_type, streak)
+        win, prize_tier = roll_payout(ticket_type, streak, player_public_id)
         target_slot = random.choices(
             range(len(slot_payouts)),
             weights=[40, 20, 15, 10, 7, 5, 2, 1]
@@ -549,7 +579,7 @@ def generate_ticket(ticket_type, streak):
             {"label": "传说", "payout": cost * 100, "color": "#ff6348"},
         ]
         weights = [25, 23, 15, 12, 8, 7, 5, 3, 1.5, 0.5]
-        win, prize_tier = roll_payout(ticket_type, streak)
+        win, prize_tier = roll_payout(ticket_type, streak, player_public_id)
         target_seg = random.choices(range(len(segments)), weights=weights)[0]
         if not win:
             target_seg = random.choice([0, 1])  # force lose to empty
@@ -663,6 +693,29 @@ class Handler(SimpleHTTPRequestHandler):
                 "totalCoins": total_coins,
             })
 
+        if path == "/admin/users":
+            admin_token = self.headers.get("X-Admin-Token", "")
+            if admin_token not in _admin_sessions or _admin_sessions[admin_token] < time.time():
+                return self.send_json({"error": "admin_unauthorized"}, HTTPStatus.UNAUTHORIZED)
+            q = params.get("q", "").strip()
+            with db() as conn:
+                if q:
+                    rows = conn.execute(
+                        "SELECT * FROM players WHERE nickname LIKE ? OR public_id LIKE ? ORDER BY level DESC LIMIT 20",
+                        (f"%{q}%", f"%{q}%"),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        "SELECT * FROM players ORDER BY level DESC LIMIT 20"
+                    ).fetchall()
+            cfg = get_config()
+            return self.send_json({
+                "users": [{
+                    **player_dict(row, True),
+                    "rateMultiplier": float(cfg.get(f"user_{row['public_id']}_rate", "1.0")),
+                } for row in rows],
+            })
+
         # ---- leaderboard with pagination ----
         if path == "/api/leaderboard":
             page = max(1, int(params.get("page", "1")))
@@ -728,13 +781,38 @@ class Handler(SimpleHTTPRequestHandler):
             admin_token = self.headers.get("X-Admin-Token", "")
             if admin_token not in _admin_sessions or _admin_sessions[admin_token] < time.time():
                 return self.send_json({"error": "admin_unauthorized"}, HTTPStatus.UNAUTHORIZED)
-            allowed_keys = set(DEFAULT_PAYOUT.keys())
-            updates = {k: v for k, v in data.items() if k in allowed_keys}
-            if updates:
-                set_config(updates)
+            if data:
+                set_config({k: str(v) for k, v in data.items()})
             return self.send_json({"config": get_config()})
 
         # admin stats handled in do_GET
+
+        # ---- admin user management ----
+        user_match = re.fullmatch(r"/admin/users/(GS-[A-F0-9]+)/coins", path)
+        if user_match:
+            admin_token = self.headers.get("X-Admin-Token", "")
+            if admin_token not in _admin_sessions or _admin_sessions[admin_token] < time.time():
+                return self.send_json({"error": "admin_unauthorized"}, HTTPStatus.UNAUTHORIZED)
+            public_id = user_match.group(1)
+            amount = int(data.get("amount", 0))
+            with db() as conn:
+                conn.execute("UPDATE players SET coins=coins+?, updated_at=? WHERE public_id=?",
+                             (amount, int(time.time()), public_id))
+                player = conn.execute("SELECT * FROM players WHERE public_id=?", (public_id,)).fetchone()
+            if not player:
+                return self.send_json({"error": "user_not_found"}, HTTPStatus.NOT_FOUND)
+            return self.send_json({"player": player_dict(player)})
+
+        user_match = re.fullmatch(r"/admin/users/(GS-[A-F0-9]+)/winrate", path)
+        if user_match:
+            admin_token = self.headers.get("X-Admin-Token", "")
+            if admin_token not in _admin_sessions or _admin_sessions[admin_token] < time.time():
+                return self.send_json({"error": "admin_unauthorized"}, HTTPStatus.UNAUTHORIZED)
+            public_id = user_match.group(1)
+            rate = float(data.get("rate", 1.0))
+            rate = max(0.0, min(10.0, rate))
+            set_config({f"user_{public_id}_rate": str(rate)})
+            return self.send_json({"playerId": public_id, "rateMultiplier": rate})
 
         # ---- register ----
         if path == "/api/register":
@@ -790,7 +868,7 @@ class Handler(SimpleHTTPRequestHandler):
                     gift = 100
                     coins += gift
 
-                payload, win = generate_ticket(ticket_type, player["streak"])
+                payload, win = generate_ticket(ticket_type, player["streak"], player["public_id"])
                 ticket_id = secrets.token_urlsafe(18)
                 now = int(time.time())
 

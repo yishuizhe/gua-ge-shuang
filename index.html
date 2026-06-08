@@ -177,8 +177,9 @@
     .wheel-pointer{position:absolute;top:-10px;left:50%;transform:translateX(-50%);font-size:30px;z-index:2;filter:drop-shadow(0 3px 2px rgba(0,0,0,.4))}
     .wheel-svg{width:300px;height:300px;transition:transform 4s cubic-bezier(.17,.67,.12,.99)}
     /* Admin */
-    .admin-panel{max-width:700px;margin:auto;max-height:85vh;overflow-y:auto;-webkit-overflow-scrolling:touch;text-align:left}
-    .identity-modal .identity-card.admin-panel{max-height:85vh}
+    .admin-panel{max-width:700px;margin:auto;max-height:none;overflow-y:visible;text-align:left}
+    .identity-modal .identity-card.admin-panel{max-height:none;overflow-y:visible}
+    #adminModal.show{overflow-y:auto;align-items:flex-start;padding-top:30px;padding-bottom:30px}
     .admin-panel h2{color:white;text-align:center}
     .admin-form{background:#2a2040;border-radius:18px;padding:20px;margin:15px 0}
     .admin-field{margin-bottom:12px;display:flex;align-items:center;gap:10px}
@@ -1126,18 +1127,20 @@
       <span>${(config[f.key] || f.def).toFixed(f.key === 'legend' || f.key === 'diamond' ? 5 : 4)}</span>
     </div>`).join('');
 
-    // Per-game config
+    // Per-game config with win rate
     const gamesHtml = TYPES.map(t => {
       const ek = `game_${t.id}_enabled`;
       const ck = `game_${t.id}_cost`;
+      const wk = `game_${t.id}_winrate`;
       const enabled = config[ek] !== '0';
       const cost = config[ck] !== undefined ? parseInt(config[ck]) : t.cost;
-      return `<div class="admin-field">
-        <label style="min-width:120px">${t.icon} ${t.name}</label>
+      const winrate = config[wk] !== undefined ? parseFloat(config[wk]) : '';
+      return `<div class="admin-field" style="flex-wrap:wrap">
+        <label style="min-width:100px">${t.icon} ${t.name}</label>
         <input type="hidden" data-key="${ek}" value="${enabled ? '1' : '0'}" id="ek_${t.id}">
         <button class="page-btn" id="tg_${t.id}" style="${enabled ? 'background:#22c55e;color:white' : 'background:#888;color:white'};min-width:50px" onclick="var el=document.getElementById('tg_${t.id}');var inp=document.getElementById('ek_${t.id}');if(inp.value==='1'){inp.value='0';el.style.background='#888';el.textContent='OFF'}else{inp.value='1';el.style.background='#22c55e';el.textContent='ON'}">${enabled ? 'ON' : 'OFF'}</button>
-        <span>票价</span>
-        <input type="number" value="${cost}" data-key="${ck}" style="width:70px;border:1px solid #594d7a;border-radius:8px;padding:5px 8px;background:#3b3052;color:white;text-align:center;font-weight:700">
+        <span style="font-size:10px">票价</span><input type="number" value="${cost}" data-key="${ck}" style="width:55px;border:1px solid #594d7a;border-radius:8px;padding:3px 5px;background:#3b3052;color:white;text-align:center;font-weight:700;font-size:12px">
+        <span style="font-size:10px">中奖率</span><input type="number" value="${winrate}" data-key="${wk}" placeholder="全局" style="width:55px;border:1px solid #594d7a;border-radius:8px;padding:3px 5px;background:#3b3052;color:white;text-align:center;font-weight:700;font-size:12px" step="0.01" min="0" max="1">
       </div>`;
     }).join('');
 
@@ -1149,9 +1152,16 @@
         <div class="admin-stat"><b>${stats.totalSettled || 0}</b><small>已结算</small></div>
         <div class="admin-stat"><b>${formatPrize(stats.totalCoins || 0)}</b><small>流通爽币</small></div>
       </div>
-      <div class="admin-form"><h3 style="color:#ffd65a;margin:0 0 15px">🎮 游戏管理</h3>${gamesHtml}</div>
+      <div class="admin-form"><h3 style="color:#ffd65a;margin:0 0 15px">🎮 游戏管理（留空中奖率使用全局设定）</h3>${gamesHtml}</div>
+      <div class="admin-form"><h3 style="color:#ffd65a;margin:0 0 15px">👤 用户管理</h3>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <input id="userSearchInput" placeholder="搜索玩家昵称或ID" style="flex:1;border:1px solid #594d7a;border-radius:10px;padding:8px 12px;background:#3b3052;color:white">
+          <button class="page-btn" id="userSearchBtn" style="background:#5b4d8a;color:white;font-size:13px">搜索</button>
+        </div>
+        <div id="userSearchResults"></div>
+      </div>
       <div class="admin-form"><h3 style="color:#ffd65a;margin:0 0 15px">中奖率配置</h3>${fieldsHtml}</div>
-      <button class="admin-btn" id="adminSave">💾 保存配置</button>
+      <button class="admin-btn" id="adminSave">💾 保存全局配置</button>
       <button class="admin-btn danger" id="adminLogout">退出管理</button></div>`;
 
     $('#adminSave').addEventListener('click', async () => {
@@ -1167,6 +1177,48 @@
       } catch (e) { toast('保存失败: ' + e.message); }
     });
     $('#adminLogout').addEventListener('click', () => { adminToken = ''; renderAdminLogin(); });
+
+    // User search
+    $('#userSearchBtn').addEventListener('click', searchUsers);
+    $('#userSearchInput').addEventListener('keydown', e => { if (e.key === 'Enter') searchUsers(); });
+
+    async function searchUsers() {
+      const q = $('#userSearchInput').value.trim();
+      try {
+        const data = await apiAdmin(`/admin/users?q=${encodeURIComponent(q)}`);
+        const users = data.users || [];
+        $('#userSearchResults').innerHTML = users.length === 0
+          ? '<div style="color:#9b8ab8;font-size:12px;text-align:center;padding:10px">未找到玩家</div>'
+          : users.map(u => `<div class="rank-row" style="padding:12px 8px">
+              <span style="font-weight:900;font-size:13px;color:#ffd65a">${escapeHtml(u.nickname)}</span>
+              <span style="font-size:10px;color:#9b8ab8">${u.playerId} · Lv${u.level} · 🪙${u.coins}</span>
+              <span style="display:flex;gap:4px">
+                <button class="page-btn" style="background:#22c55e;color:white;font-size:10px" onclick="window._giveCoins('${u.playerId}')">+币</button>
+                <button class="page-btn" style="background:#f39c12;color:white;font-size:10px" onclick="window._setRate('${u.playerId}','${u.rateMultiplier||1}')">率:${u.rateMultiplier||1}x</button>
+              </span>
+            </div>`).join('');
+      } catch (e) { $('#userSearchResults').innerHTML = '<div style="color:#e74c3c;font-size:12px">搜索失败</div>'; }
+    }
+
+    // Global helpers for user management buttons
+    window._giveCoins = async function(pid) {
+      const amount = parseInt(prompt(`给 ${pid} 增加爽币数量:`, '100'));
+      if (!amount) return;
+      try {
+        const data = await apiAdmin(`/admin/users/${pid}/coins`, { method: 'POST', body: JSON.stringify({ amount }) });
+        toast(`${data.player.nickname} 爽币 +${amount}，当前 ${data.player.coins}`);
+        searchUsers();
+      } catch (e) { toast('操作失败: ' + e.message); }
+    };
+    window._setRate = async function(pid, currentRate) {
+      const rate = parseFloat(prompt(`${pid} 中奖倍率 (0-10，当前 ${currentRate}):`, currentRate));
+      if (isNaN(rate)) return;
+      try {
+        await apiAdmin(`/admin/users/${pid}/winrate`, { method: 'POST', body: JSON.stringify({ rate }) });
+        toast(`${pid} 中奖倍率已设为 ${rate}x`);
+        searchUsers();
+      } catch (e) { toast('操作失败: ' + e.message); }
+    };
   }
 
   // ---- Event bindings ----
