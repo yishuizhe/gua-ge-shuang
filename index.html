@@ -176,7 +176,8 @@
     .wheel-pointer{position:absolute;top:-10px;left:50%;transform:translateX(-50%);font-size:30px;z-index:2;filter:drop-shadow(0 3px 2px rgba(0,0,0,.4))}
     .wheel-svg{width:300px;height:300px;transition:transform 4s cubic-bezier(.17,.67,.12,.99)}
     /* Admin */
-    .admin-panel{max-width:700px;margin:auto;max-height:80vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+    .admin-panel{max-width:700px;margin:auto;max-height:85vh;overflow-y:auto;-webkit-overflow-scrolling:touch;text-align:left}
+    .identity-modal .identity-card.admin-panel{max-height:85vh}
     .admin-panel h2{color:white;text-align:center}
     .admin-form{background:#2a2040;border-radius:18px;padding:20px;margin:15px 0}
     .admin-field{margin-bottom:12px;display:flex;align-items:center;gap:10px}
@@ -284,7 +285,7 @@
         <div class="panel-title">好运票铺 <small>选一张开刮</small></div>
         <div class="shop" id="shop"></div>
         <div class="mission">
-          <div class="mission-head">今日挑战</div><strong>刮开 8 种不同玩法</strong>
+          <div class="mission-head">今日挑战</div><strong>集齐全部玩法图鉴</strong>
           <div class="progress"><i id="missionBar"></i></div>
           <div class="mission-foot"><span id="missionText">0 / 8</span><span>奖励 +100</span></div>
         </div>
@@ -478,9 +479,10 @@
     $('#levelName').textContent = names[Math.min(names.length - 1, state.level - 1)];
     $('#xpText').textContent = within + ' / 100 经验';
     $('#xpBar').style.width = Math.min(100, within) + '%';
-    $('#missionText').textContent = state.seen.length + ' / 8';
-    $('#missionBar').style.width = (state.seen.length / 8 * 100) + '%';
-    $('#collectionCount').textContent = state.seen.length + ' / 8';
+    const totalT = state.totalTypes || TYPES.length;
+    $('#missionText').textContent = state.seen.length + ' / ' + totalT;
+    $('#missionBar').style.width = (state.seen.length / totalT * 100) + '%';
+    $('#collectionCount').textContent = state.seen.length + ' / ' + totalT;
     $('#collection').innerHTML = TYPES.map(t => `<span class="medal ${state.seen.includes(t.id) ? 'on' : ''}" title="${t.name}">${t.icon}</span>`).join('');
     renderRecords();
     renderRanks();
@@ -751,43 +753,47 @@
   // ---- Slots (水果机) ----
   function renderSlots() {
     const reels = ticket.reels;
-    const n = reels[0].length; // items per reel
-    // Each reel: show 5 copies for smooth infinite-spin feel, highlight middle copy
-    const makeReel = (items) => {
-      const quint = [...items, ...items, ...items, ...items, ...items];
-      return quint.map((s, j) => {
-        const isResult = j >= n * 2 + 4 && j <= n * 2 + 6;
-        return `<div class="slots-item" style="${isResult ? 'background:rgba(255,255,255,0.2);border-radius:8px' : ''}">${s}</div>`;
-      }).join('');
-    };
+    const n = reels[0].length;
+    // 2 copies: original + duplicate for spin effect
+    const makeReel = (items) => [...items, ...items].map(s => `<div class="slots-item">${s}</div>`).join('');
     $('#stage').innerHTML = `<div class="arcade"><h2>🍒 水果机</h2><div class="arcade-sub">三列转轮，匹配中奖</div>
       <div class="slots-reel">${[0, 1, 2].map(i => `<div class="slots-col" id="slotCol${i}"><div class="reel-inner" id="reelInner${i}">${makeReel(reels[i])}</div></div>`).join('')}</div>
       <button class="pusher-btn" id="slotsSpin">🎰 旋转</button>
       <div id="slotsResult" style="margin-top:12px;font-weight:900;font-size:16px"></div></div>`;
+
     $('#slotsSpin').addEventListener('click', async () => {
       $('#slotsSpin').disabled = true;
-      // Target: show the middle copy's result row (items at index n*2+5) centered in the visible area.
-      // Visible height = 280px / 56px = 5 items. Center = 3rd visible = offset 2 from top.
-      // Target offset = (n*2 + 5 - 2) * 56 = (n*2 + 3) * 56
-      const targetOffset = (n * 2 + 3) * 56;
+      // Spin each reel: accelerate then decelerate
+      const durations = [1800, 2200, 2600];
       [0, 1, 2].forEach(i => {
         const inner = $(`#reelInner${i}`);
-        // Spin several full cycles first, then land
-        const extraSpin = (5 + i * 2) * n * 56;
-        inner.style.transition = `transform ${2 + i * 0.3}s cubic-bezier(.17,.67,.12,.99)`;
-        inner.style.transform = `translateY(-${extraSpin + targetOffset}px)`;
+        const cycles = 3 + i;
+        // Land so that result row (index 5) is at the visible center (index 2 of visible 5 items)
+        // Offset = (resultIdx - centerVisibleIdx) * itemHeight = (5 - 2) * 56 = 3 * 56 = 168
+        const resultOffset = 168;
+        const total = cycles * n * 56 + resultOffset;
+        inner.style.transition = `transform ${durations[i]}ms cubic-bezier(.1,.7,.2,1)`;
+        inner.style.transform = `translateY(-${total}px)`;
       });
       setTimeout(async () => {
+        // After animation, show result clearly
         const final = reels.map(r => r[5]).join(' ');
         let msg = `结果: ${final}`;
-        if (new Set(reels.map(r => r[5])).size === 1) msg += ' 🎉 三连中！';
-        else if (reels[0][5] === reels[1][5] || reels[1][5] === reels[2][5]) msg += ' ✨ 两连中！';
+        const uniq = new Set(reels.map(r => r[5]));
+        if (uniq.size === 1) msg += ' 🎉 三连中！';
+        else if (uniq.size === 2) msg += ' ✨ 两连中！';
         $('#slotsResult').textContent = msg;
+        // Snap reels to show result neatly
+        [0, 1, 2].forEach(i => {
+          const inner = $(`#reelInner${i}`);
+          inner.style.transition = 'transform 0.3s ease-out';
+          inner.style.transform = 'translateY(-168px)';
+        });
         try {
           await finishTicket();
           setTimeout(() => { if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 1500);
         } catch (e) {}
-      }, 2800);
+      }, durations[2] + 200);
     });
   }
 
@@ -795,58 +801,143 @@
   function renderPinball() {
     const slots = ticket.slots;
     const slotW = 100 / slots.length;
-    $('#stage').innerHTML = `<div class="arcade"><h2>🔮 弹珠台</h2><div class="arcade-sub">弹珠经过随机碰撞落入奖池</div>
-      <div class="pinball-board" id="pinballBoard" style="position:relative;width:100%;height:340px;background:linear-gradient(#1a2240,#2d1b3d);border-radius:20px;overflow:hidden;margin:10px 0">
-        <div id="pegLayer" style="position:absolute;inset:0"></div>
-        <div class="pinball-ball" id="pinballBall" style="position:absolute;width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ff6b6b,#c0392b);left:50%;top:3%;z-index:2"></div>
-        <div style="position:absolute;bottom:0;left:0;right:0;display:flex;z-index:1">${slots.map((s, i) => `<div style="flex:1;text-align:center;padding:8px 2px;border-left:1px solid #5a4d7a;font-size:10px;color:#cbbede;background:rgba(0,0,0,0.3)">${s.label}<br><b style="color:#ffd65a;font-size:12px">${s.payout ? formatPrize(s.payout) : '✗'}</b></div>`).join('')}</div>
-      </div>
-      <button class="pusher-btn" id="pinballLaunch" style="margin-top:12px">🔮 发射弹珠</button></div>`;
-    // Draw pegs
-    const pegLayer = $('#pegLayer');
-    const W = pegLayer.offsetWidth || 400, H = 340;
-    let pegsHtml = '';
+    // Generate peg positions (consistent within this game)
+    const pegs = [];
     for (let row = 0; row < 9; row++) {
       const cols = 4 + row;
+      const rowPegs = [];
       for (let col = 0; col < cols; col++) {
-        if (Math.random() > 0.12) {
-          const x = (col + 1) / (cols + 1) * W;
-          const y = 40 + row * 30 + Math.random() * 5;
-          pegsHtml += `<div style="position:absolute;width:8px;height:8px;border-radius:50%;background:#7b6f9e;left:${x}px;top:${y}px;transform:translate(-50%,-50%)"></div>`;
+        if (Math.random() > 0.1) {
+          rowPegs.push({ x: (col + 1) / (cols + 1), y: 0.12 + row * 0.088 + Math.random() * 0.01 });
         }
       }
+      pegs.push(rowPegs);
     }
-    pegLayer.innerHTML = pegsHtml;
 
-    $('#pinballLaunch').addEventListener('click', async () => {
-      $('#pinballLaunch').disabled = true;
-      const ball = $('#pinballBall');
-      const nSlots = slots.length;
-      const targetIdx = ticket._targetSlot || 0;
-      // Random path: multiple bounces before landing
-      const steps = 6 + Math.floor(Math.random() * 5);
-      let delay = 0;
-      for (let step = 0; step < steps; step++) {
-        const isLast = step === steps - 1;
-        const stepLeft = isLast
-          ? (targetIdx + 0.5) * slotW + (Math.random() - 0.5) * slotW * 0.6
-          : 10 + Math.random() * 80;
-        const stepTop = isLast ? 88 : 5 + (step + 1) * (83 / steps);
-        const dur = 0.15 + Math.random() * 0.2;
-        setTimeout(() => {
-          ball.style.transition = `all ${dur}s ease-in`;
-          ball.style.left = stepLeft + '%';
-          ball.style.top = stepTop + '%';
-        }, delay * 1000);
-        delay += dur;
+    $('#stage').innerHTML = `<div class="arcade"><h2>🔮 弹珠台</h2><div class="arcade-sub">弹珠经过碰撞落入奖池</div>
+      <canvas id="pinballCv" width="500" height="340" style="width:100%;border-radius:20px;background:linear-gradient(#1a2240,#2d1b3d)"></canvas>
+      <div style="display:flex;width:100%">${slots.map((s, i) => `<div style="flex:1;text-align:center;padding:6px 2px;font-size:10px;color:#cbbede">${s.label}<br><b style="color:#ffd65a;font-size:11px">${s.payout ? formatPrize(s.payout) : '✗'}</b></div>`).join('')}</div>
+      <button class="pusher-btn" id="pinballLaunch" style="margin-top:12px">🔮 发射弹珠</button></div>`;
+
+    const cv = $('#pinballCv'), ctx = cv.getContext('2d');
+    const W = cv.width, H = cv.height;
+
+    // Draw static pegs and slots
+    function drawBoard() {
+      ctx.clearRect(0, 0, W, H);
+      // Pegs
+      pegs.forEach(row => row.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x * W, p.y * H, 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#7b6f9e';
+        ctx.fill();
+        ctx.strokeStyle = '#a99fc4';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }));
+      // Slot dividers
+      for (let i = 1; i < slots.length; i++) {
+        ctx.strokeStyle = '#5a4d7a';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(i * W / slots.length, H - 30);
+        ctx.lineTo(i * W / slots.length, H);
+        ctx.stroke();
       }
-      setTimeout(async () => {
-        try {
-          await finishTicket();
-          setTimeout(() => { if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 1500);
-        } catch (e) {}
-      }, (delay + 0.3) * 1000);
+      // Bottom line
+      ctx.strokeStyle = '#5a4d7a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, H - 30);
+      ctx.lineTo(W, H - 30);
+      ctx.stroke();
+    }
+    drawBoard();
+
+    // Ball
+    let bx = 0.5, by = 0.03, vx = 0, vy = 0;
+
+    function drawBall() {
+      ctx.beginPath();
+      ctx.arc(bx * W, by * H, 8, 0, Math.PI * 2);
+      const grad = ctx.createRadialGradient(bx * W - 3, by * H - 3, 2, bx * W, by * H, 8);
+      grad.addColorStop(0, '#ff6b6b');
+      grad.addColorStop(1, '#c0392b');
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+
+    drawBall();
+
+    $('#pinballLaunch').addEventListener('click', () => {
+      $('#pinballLaunch').disabled = true;
+      bx = 0.45 + Math.random() * 0.1;
+      by = 0.03;
+      vx = (Math.random() - 0.5) * 0.02;
+      vy = 0.002;
+
+      let frameId;
+      function step() {
+        // Gravity
+        vy += 0.0005;
+        bx += vx;
+        by += vy;
+
+        // Bounce off walls
+        if (bx < 0.02) { bx = 0.02; vx = Math.abs(vx) * 0.6; }
+        if (bx > 0.98) { bx = 0.98; vx = -Math.abs(vx) * 0.6; }
+
+        // Check peg collisions
+        for (const row of pegs) {
+          for (const p of row) {
+            const dx = bx - p.x;
+            const dy = by - p.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 0.025) {
+              // Reflect
+              const nx = dx / dist;
+              const ny = dy / dist;
+              const dot = vx * nx + vy * ny;
+              vx = (vx - 2 * dot * nx) * 0.5;
+              vy = (vy - 2 * dot * ny) * 0.5;
+              // Add randomness
+              vx += (Math.random() - 0.5) * 0.008;
+              // Push ball out
+              bx = p.x + nx * 0.026;
+              by = p.y + ny * 0.026;
+            }
+          }
+        }
+
+        // Reached bottom
+        if (by >= 0.90) {
+          drawBoard();
+          drawBall();
+          cancelAnimationFrame(frameId);
+          // Determine which slot
+          const slotIdx = Math.min(slots.length - 1, Math.floor(bx * slots.length));
+          finishPinball(slotIdx);
+          return;
+        }
+
+        // Stopped (very slow)
+        if (Math.abs(vx) < 0.0002 && Math.abs(vy) < 0.0003 && by > 0.5) {
+          vy += 0.001;
+        }
+
+        drawBoard();
+        drawBall();
+        frameId = requestAnimationFrame(step);
+      }
+      frameId = requestAnimationFrame(step);
     });
+
+    async function finishPinball(slotIdx) {
+      try {
+        await finishTicket({ slot: slotIdx });
+        setTimeout(() => { if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 1500);
+      } catch (e) {}
+    }
   }
 
   // ---- Wheel ----
@@ -871,9 +962,14 @@
       <button class="pusher-btn" id="wheelSpin">🎡 旋转</button></div>`;
     $('#wheelSpin').addEventListener('click', async () => {
       $('#wheelSpin').disabled = true;
-      const targetIdx = ticket._targetSegment || 0;
-      const targetAngle = 360 - (targetIdx * segAngle + segAngle / 2);
-      const spins = 5 * 360 + targetAngle + Math.random() * segAngle * 0.5;
+      const targetIdx = ticket.targetSegment || 0;
+      // Pointer is at top (-90°). Segment center = t * segAngle + segAngle/2 from right.
+      // Rotate so segment center reaches pointer: X = 270 - segmentCenter
+      const segCenter = targetIdx * segAngle + segAngle / 2;
+      const targetAngle = 270 - segCenter;
+      const randomOffset = (Math.random() - 0.5) * segAngle * 0.5;
+      const spins = (5 + Math.floor(Math.random() * 3)) * 360 + targetAngle + randomOffset;
+      $('#wheelSvg').style.transition = 'transform 4s cubic-bezier(.17,.67,.12,.99)';
       $('#wheelSvg').style.transform = `rotate(${spins}deg)`;
       setTimeout(async () => {
         try {
@@ -1028,6 +1124,21 @@
       <span>${(config[f.key] || f.def).toFixed(f.key === 'legend' || f.key === 'diamond' ? 5 : 4)}</span>
     </div>`).join('');
 
+    // Per-game config
+    const gamesHtml = TYPES.map(t => {
+      const ek = `game_${t.id}_enabled`;
+      const ck = `game_${t.id}_cost`;
+      const enabled = config[ek] !== '0';
+      const cost = config[ck] !== undefined ? parseInt(config[ck]) : t.cost;
+      return `<div class="admin-field">
+        <label style="min-width:120px">${t.icon} ${t.name}</label>
+        <input type="hidden" data-key="${ek}" value="${enabled ? '1' : '0'}" id="ek_${t.id}">
+        <button class="page-btn" id="tg_${t.id}" style="${enabled ? 'background:#22c55e;color:white' : 'background:#888;color:white'};min-width:50px" onclick="var el=document.getElementById('tg_${t.id}');var inp=document.getElementById('ek_${t.id}');if(inp.value==='1'){inp.value='0';el.style.background='#888';el.textContent='OFF'}else{inp.value='1';el.style.background='#22c55e';el.textContent='ON'}">${enabled ? 'ON' : 'OFF'}</button>
+        <span>票价</span>
+        <input type="number" value="${cost}" data-key="${ck}" style="width:70px;border:1px solid #594d7a;border-radius:8px;padding:5px 8px;background:#3b3052;color:white;text-align:center;font-weight:700">
+      </div>`;
+    }).join('');
+
     $('#adminContent').innerHTML = `<div class="admin-panel"><h2>⚙ 管理员后台</h2>
       <div class="admin-stats">
         <div class="admin-stat"><b>${stats.totalPlayers || 0}</b><small>总玩家</small></div>
@@ -1036,13 +1147,18 @@
         <div class="admin-stat"><b>${stats.totalSettled || 0}</b><small>已结算</small></div>
         <div class="admin-stat"><b>${formatPrize(stats.totalCoins || 0)}</b><small>流通爽币</small></div>
       </div>
+      <div class="admin-form"><h3 style="color:#ffd65a;margin:0 0 15px">🎮 游戏管理</h3>${gamesHtml}</div>
       <div class="admin-form"><h3 style="color:#ffd65a;margin:0 0 15px">中奖率配置</h3>${fieldsHtml}</div>
       <button class="admin-btn" id="adminSave">💾 保存配置</button>
       <button class="admin-btn danger" id="adminLogout">退出管理</button></div>`;
 
     $('#adminSave').addEventListener('click', async () => {
       const updates = {};
-      document.querySelectorAll('[data-key]').forEach(el => updates[el.dataset.key] = parseFloat(el.value));
+      document.querySelectorAll('[data-key]').forEach(el => {
+        const v = el.value;
+        if (!isNaN(parseFloat(v)) && v.trim() !== '') updates[el.dataset.key] = parseFloat(v);
+        else updates[el.dataset.key] = v;
+      });
       try {
         await apiAdmin('/admin/config', { method: 'POST', body: JSON.stringify(updates) });
         toast('配置已保存');

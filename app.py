@@ -166,6 +166,7 @@ def player_dict(row, include_private=True):
         "best": row["best"],
         "streak": row["streak"],
         "seen": json.loads(row["seen"] or "[]"),
+        "totalTypes": len(TYPES),
     }
     if not include_private:
         return {
@@ -553,7 +554,7 @@ def generate_ticket(ticket_type, streak):
         return {
             "mode": "wheel",
             "segments": segments,
-            "_targetSegment": target_seg,
+            "targetSegment": target_seg,
             "resultText": "转盘旋转，指针停在哪里？",
             "prizeTier": prize_tier,
             "maxPrize": 1000000,
@@ -761,6 +762,10 @@ class Handler(SimpleHTTPRequestHandler):
             ticket_type = str(data.get("type", ""))
             if ticket_type not in TYPES:
                 return self.send_json({"error": "unknown_ticket"}, HTTPStatus.BAD_REQUEST)
+            # Check if game is enabled
+            cfg = get_config()
+            if cfg.get(f"game_{ticket_type}_enabled", "1") == "0":
+                return self.send_json({"error": "该玩法暂未开放"}, HTTPStatus.BAD_REQUEST)
             with db() as conn:
                 conn.execute("BEGIN IMMEDIATE")
                 player = self.auth_player(conn)
@@ -773,6 +778,10 @@ class Handler(SimpleHTTPRequestHandler):
                     return self.send_json({"error": reason}, HTTPStatus.TOO_MANY_REQUESTS)
 
                 cost = TYPES[ticket_type]["cost"]
+                # Allow custom cost override
+                custom_cost = cfg.get(f"game_{ticket_type}_cost")
+                if custom_cost is not None:
+                    cost = int(custom_cost)
                 coins = player["coins"]
                 gift = 0
                 if coins < cost:
@@ -880,7 +889,7 @@ class Handler(SimpleHTTPRequestHandler):
                     challenge_reward = 0
                     if ticket_row["ticket_type"] not in seen:
                         seen.append(ticket_row["ticket_type"])
-                        if len(seen) >= 8:
+                        if len(seen) == len(TYPES):
                             challenge_reward = 100
                             coins += challenge_reward
                     now = int(time.time())
