@@ -10,7 +10,9 @@
     :root{--red:#d71936;--deep:#740719;--ink:#25100f;--gold:#ffd65a;--gold2:#ff9e1b;--cream:#fff5d9;--paper:#fff9e9;--green:#0d9b68;--muted:#956d5d;--shadow:0 20px 60px rgba(71,8,17,.25)}
     *{box-sizing:border-box}
     html,body{margin:0;min-height:100%;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;color:var(--ink)}
-    body{min-height:100dvh;overflow-x:hidden;user-select:none;-webkit-user-select:none;background:radial-gradient(circle at 10% 10%,rgba(255,214,90,.24),transparent 25%),radial-gradient(circle at 90% 0,rgba(255,103,90,.24),transparent 25%),linear-gradient(145deg,#8d091d,#c6122d 42%,#6d0718);-webkit-tap-highlight-color:transparent}
+    body{min-height:100dvh;overflow-x:hidden;background:radial-gradient(circle at 10% 10%,rgba(255,214,90,.24),transparent 25%),radial-gradient(circle at 90% 0,rgba(255,103,90,.24),transparent 25%),linear-gradient(145deg,#8d091d,#c6122d 42%,#6d0718)}
+    .app,.panel,.game-shell,.ticket-choice,.ticker,.wallet,.lottery-ticket,.arcade{user-select:none;-webkit-user-select:none}
+    input,textarea{-webkit-user-select:text;user-select:text}
     body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.13;background-image:radial-gradient(#fff 1px,transparent 1px);background-size:18px 18px;mask-image:linear-gradient(to bottom,#000,transparent 80%)}
     button{font:inherit}
     .app{width:min(1440px,100%);margin:auto;padding:14px 18px 30px}
@@ -233,7 +235,7 @@
     .win-card .crown{font-size:75px}.win-card h2{font-size:42px;margin:5px 0;color:#ffe05c;text-shadow:0 4px #9e1b20}.win-card p{font-size:18px}
     .win-card button{border:0;border-radius:16px;padding:13px 35px;background:#ffd553;color:#841426;font-weight:1000;cursor:pointer}
     .identity-modal{position:fixed;inset:0;z-index:130;display:none;place-items:center;background:rgba(55,0,10,.78);backdrop-filter:blur(9px);padding:18px}
-    .identity-modal.show{display:grid}.identity-card{width:min(400px,100%);background:#fff7df;border-radius:25px;padding:25px;box-shadow:0 25px 80px rgba(0,0,0,.35);text-align:center}
+    .identity-modal.show{display:grid;overflow-y:auto}.identity-card{width:min(400px,100%);background:#fff7df;border-radius:25px;padding:25px;box-shadow:0 25px 80px rgba(0,0,0,.35);text-align:center;pointer-events:all}.identity-card input{-webkit-user-select:text;user-select:text;pointer-events:all}
     .identity-logo{width:70px;height:70px;margin:auto;display:grid;place-items:center;border-radius:22px;background:linear-gradient(145deg,#ffd75b,#ff9c24);font-size:36px;transform:rotate(-4deg)}
     .identity-card h2{font-size:25px;margin:15px 0 6px}.identity-card p{font-size:12px;color:#906c5c;line-height:1.7;margin:0 0 18px}
     .identity-card input{width:100%;height:49px;border:2px solid #ead4b2;border-radius:15px;background:white;padding:0 15px;font:700 16px inherit;outline:none;text-align:center}
@@ -758,77 +760,107 @@
   function renderSlots() {
     const reels = ticket.reels;
     const n = reels[0].length;
-    const itemH = 56;
-    // 3 copies for spin: show middle copy as initial view
+    const itemH = 56; // item height
+    // Result row: the server-determined result is at reels[i][5]
+    // We use 5 copies: result row at copy 2 index 5 = 2*n + 5
     const makeReel = (items) => {
-      const triple = [...items, ...items, ...items];
-      return triple.map(s => `<div class="slots-item">${s}</div>`).join('');
+      const arr = [];
+      for (let c = 0; c < 5; c++) arr.push(...items);
+      return arr.map(s => `<div class="slots-item">${s}</div>`).join('');
     };
+
     $('#stage').innerHTML = `<div class="arcade"><h2>🍒 水果机</h2><div class="arcade-sub">三列转轮，匹配中奖</div>
-      <div class="slots-reel">${[0, 1, 2].map(i => `<div class="slots-col" id="slotCol${i}" style="position:relative"><div class="reel-inner" id="reelInner${i}">${makeReel(reels[i])}</div></div>`).join('')}</div>
-      <div style="display:flex;gap:8px;justify-content:center;margin-top:15px">
-        <button class="pusher-btn" id="slotsSpin">🎰 旋转</button>
-        <button class="pusher-btn" id="slotsStop" disabled style="background:#e74c3c">⏹ 停止</button>
-      </div>
+      <div class="slots-reel">${[0, 1, 2].map(i => `<div class="slots-col" id="slotCol${i}"><div class="reel-inner" id="reelInner${i}">${makeReel(reels[i])}</div></div>`).join('')}</div>
+      <button class="pusher-btn" id="slotsSpin">🎰 旋转</button>
       <div id="slotsResult" style="margin-top:12px;font-weight:900;font-size:16px"></div></div>`;
 
-    // Start at middle copy, showing result row (index 5 of middle = n+5 of triple)
-    const startOffset = (n + 5) * itemH - 140; // center result item
-    let offsets = [startOffset, startOffset, startOffset];
-    let spinning = [false, false, false];
-    let intervals = [null, null, null];
-    const speeds = [3, 3.5, 4]; // px per frame
+    const totalItems = n * 5;
+    const totalH = totalItems * itemH;
+    // Center row = result row at 2*n+5. Center of 280px window = 140px. Offset = (2*n+5)*56 - 140
+    const resultIdx = 2 * n + 5;
+    const centerOffset = resultIdx * itemH - 140;
 
+    // Position reels at start
     [0, 1, 2].forEach(i => {
-      const inner = $(`#slotCol${i}`);
-      inner.scrollTop = startOffset;
+      $(`#slotCol${i}`).scrollTop = centerOffset;
     });
 
-    $('#slotsSpin').addEventListener('click', () => {
-      $('#slotsSpin').disabled = true;
-      $('#slotsStop').disabled = false;
-      [0, 1, 2].forEach(i => {
-        spinning[i] = true;
-        intervals[i] = setInterval(() => {
-          if (!spinning[i]) return;
-          const inner = $(`#slotCol${i}`);
-          offsets[i] += speeds[i];
-          inner.scrollTop = offsets[i];
-        }, 16);
-      });
-    });
+    let running = false;
+    let speeds = [0, 0, 0];
+    let positions = [centerOffset, centerOffset, centerOffset];
+    let stopped = [false, false, false];
+    let stopRequested = [false, false, false];
+    let frameId = null;
 
-    $('#slotsStop').addEventListener('click', async () => {
-      $('#slotsStop').disabled = true;
-      // Stop reels one by one
+    function animLoop() {
+      let allStopped = true;
       for (let i = 0; i < 3; i++) {
-        setTimeout(() => {
-          spinning[i] = false;
-          clearInterval(intervals[i]);
-          // Snap to show result row centered
-          // Find the closest position where result row (n+5) is centered
-          const inner = $(`#slotCol${i}`);
-          const targetOff = startOffset + Math.floor(offsets[i] / itemH) * itemH - offsets[i] % itemH;
-          const finalOff = Math.round(offsets[i] / itemH) * itemH;
-          // Smooth scroll to nearest item boundary
-          inner.style.scrollBehavior = 'smooth';
-          inner.scrollTop = finalOff;
-          inner.style.scrollBehavior = 'auto';
-        }, i * 600);
+        if (stopped[i]) continue;
+        allStopped = false;
+        const col = $(`#slotCol${i}`);
+        if (!col) continue;
+
+        // Accelerate / decelerate
+        if (!stopRequested[i]) {
+          // Accelerate to max speed
+          speeds[i] = Math.min(speeds[i] + 0.08, 8 + i * 0.5);
+        } else {
+          // Decelerate
+          speeds[i] = Math.max(speeds[i] - 0.12, 0);
+          if (speeds[i] <= 0.02) {
+            speeds[i] = 0;
+            // Snap to nearest result-aligned position
+            // Result should show at (2*n+5 + k*n) for some integer k
+            // Current visible center = positions[i] + 140
+            // We want: positions[i] + 140 ≡ resultIdx * 56 (mod n*56)
+            const cycleH = n * itemH;
+            const currentCenter = positions[i] + 140;
+            // Find nearest position where result is centered
+            const remainder = ((currentCenter % cycleH) + cycleH) % cycleH;
+            const targetRemainder = (resultIdx * itemH) % cycleH;
+            let adjust = targetRemainder - remainder;
+            if (adjust > cycleH / 2) adjust -= cycleH;
+            if (adjust < -cycleH / 2) adjust += cycleH;
+            positions[i] += adjust;
+            col.scrollTop = positions[i];
+            stopped[i] = true;
+            continue;
+          }
+        }
+
+        positions[i] += speeds[i];
+        // Wrap around to avoid scroll overflow
+        if (positions[i] > totalH - 560) positions[i] -= cycleH;
+        if (positions[i] < 140) positions[i] += cycleH;
+        col.scrollTop = positions[i];
       }
-      // Finish after all reels stop
-      setTimeout(async () => {
+
+      if (!allStopped) {
+        frameId = requestAnimationFrame(animLoop);
+      } else {
+        // All stopped - finish
         const final = reels.map(r => r[5]).join(' ');
         let msg = `结果: ${final}`;
         const uniq = new Set(reels.map(r => r[5]));
         if (uniq.size === 1) msg += ' 🎉 三连中！';
         else if (uniq.size === 2) msg += ' ✨ 两连中！';
         $('#slotsResult').textContent = msg;
-        try {
-          await finishTicket();
-          setTimeout(() => { if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 1500);
-        } catch (e) {}
-      }, 2500);
+        finishTicket().catch(() => {});
+        setTimeout(() => { if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 1500);
+      }
+    }
+
+    $('#slotsSpin').addEventListener('click', () => {
+      if (running) return;
+      $('#slotsSpin').disabled = true;
+      running = true;
+      // Auto-stop after 2-3 seconds
+      setTimeout(() => {
+        for (let i = 0; i < 3; i++) {
+          setTimeout(() => { stopRequested[i] = true; }, i * 600);
+        }
+      }, 2000 + Math.random() * 800);
+      frameId = requestAnimationFrame(animLoop);
     });
   }
 
