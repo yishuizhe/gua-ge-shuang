@@ -11,7 +11,7 @@ from collections import defaultdict
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote_plus
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get("SCRATCH_DB", ROOT / "data" / "scratch_game.db"))
@@ -133,20 +133,26 @@ def get_config():
         rows = conn.execute("SELECT key, value FROM admin_config").fetchall()
     cfg = {}
     for r in rows:
+        v = r["value"]
+        if v is None or v == "":
+            continue
         try:
-            cfg[r["key"]] = float(r["value"])
+            cfg[r["key"]] = float(v)
         except ValueError:
-            cfg[r["key"]] = r["value"]
+            cfg[r["key"]] = v
     return cfg
 
 
 def set_config(updates):
     with db() as conn:
         for k, v in updates.items():
-            conn.execute(
-                "INSERT OR REPLACE INTO admin_config(key, value) VALUES(?, ?)",
-                (k, str(v)),
-            )
+            if v is None or (isinstance(v, str) and v.strip() == ""):
+                conn.execute("DELETE FROM admin_config WHERE key=?", (k,))
+            else:
+                conn.execute(
+                    "INSERT OR REPLACE INTO admin_config(key, value) VALUES(?, ?)",
+                    (k, str(v)),
+                )
 
 
 # ---------- auth ----------
@@ -238,6 +244,11 @@ def roll_payout(ticket_type, streak, player_public_id=None):
     # Per-game win rate override
     game_rate_key = f"game_{ticket_type}_winrate"
     game_rate = cfg.get(game_rate_key)
+    if game_rate is not None:
+        try:
+            game_rate = float(game_rate)
+        except (ValueError, TypeError):
+            game_rate = None
 
     # Per-user rate multiplier
     user_mult = 1.0
@@ -653,7 +664,7 @@ class Handler(SimpleHTTPRequestHandler):
             for pair in qs.split("&"):
                 if "=" in pair:
                     k, v = pair.split("=", 1)
-                    params[k] = v
+                    params[k] = unquote_plus(v)
 
         if path == "/api/health":
             return self.send_json({"ok": True})
@@ -902,30 +913,59 @@ class Handler(SimpleHTTPRequestHandler):
                         action = str(data.get("action", "stand"))
                         deck = payload["deck"]
                         player_hand = payload["playerHand"][:]
+                        dealer_hand = payload["dealerHand"][:]
+
+                        def hv(h):
+                            t = sum(h)
+                            return t + 10 if 1 in h and t + 10 <= 21 else t
+
+                        player_val = hv(player_hand)
+
                         if action == "hit":
                             player_hand.append(deck.pop(0))
-                            def hv(h):
-                                t = sum(h)
-                                return t + 10 if 1 in h and t + 10 <= 21 else t
                             player_val = hv(player_hand)
                             if player_val > 21:
                                 win = 0  # bust
-                            elif player_val == 21:
-                                win = payload["_win"] * 2
-                            else:
-                                # dealer plays
-                                dealer_hand = payload["dealerHand"][:]
-                                while hv(dealer_hand) < 17:
-                                    dealer_hand.append(deck.pop(0))
-                                dealer_val = hv(dealer_hand)
-                                if dealer_val > 21 or player_val > dealer_val:
-                                    win = payload["_win"]
-                                elif player_val == dealer_val:
-                                    win = 0
-                                else:
-                                    win = 0
-                            payload["playerHand"] = player_hand
-                            payload["dealerHand"] = dealer_hand
+                            elif player_val < 21:
+                                # still can continue, don't settle yet
+                                # return current state so frontend can show updated cards
+                                payload["playerHand"] = player_hand
+                                payload["deck"] = deck
+                                conn.execute(
+                                    "UPDATE tickets SET payload=? WHERE id=?",
+                                    (json.dumps(payload, ensure_ascii=False), ticket_row["id"]),
+                                )
+                                conn.execute("UPDATE players SET updated_at=? WHERE id=?",
+                                             (int(time.time()), player["id"]))
+                                player = conn.execute("SELECT * FROM players WHERE id=?", (player["id"],)).fetchone()
+                                return self.send_json({
+                                    "win": 0,
+                                    "hitOngoing": True,
+                                    "playerHand": player_hand,
+                                    "playerVal": player_val,
+                                    "dealerHand": dealer_hand,
+                                    "player": player_dict(player),
+                                })
+
+                        # Stand or bust or hit-to-21: resolve the hand
+                        # Dealer plays
+                        while hv(dealer_hand) < 17:
+                            dealer_hand.append(deck.pop(0))
+                        dealer_val = hv(dealer_hand)
+
+                        if player_val > 21:
+                            win = 0  # bust
+                        elif dealer_val > 21:
+                            win = payload["_win"]
+                        elif player_val > dealer_val:
+                            win = payload["_win"]
+                        elif player_val == dealer_val:
+                            win = 0  # push
+                        else:
+                            win = 0
+
+                        payload["playerHand"] = player_hand
+                        payload["dealerHand"] = dealer_hand
 
                     # dice: check bet
                     elif payload.get("mode") == "dice":
@@ -976,12 +1016,18 @@ class Handler(SimpleHTTPRequestHandler):
                 player = conn.execute("SELECT * FROM players WHERE id=?", (player["id"],)).fetchone()
                 ticket_row = conn.execute("SELECT * FROM tickets WHERE id=?", (ticket_row["id"],)).fetchone()
                 records, _ = records_for(conn, player["id"], 1, 10)
-            return self.send_json({
+            resp = {
                 "win": ticket_row["win"],
                 "player": player_dict(player),
                 "records": records,
                 "challengeReward": challenge_reward if "challenge_reward" in locals() else 0,
-            })
+            }
+            # Include final hands for blackjack
+            final_payload = json.loads(ticket_row["payload"])
+            if final_payload.get("mode") == "blackjack":
+                resp["playerHand"] = final_payload.get("playerHand", [])
+                resp["dealerHand"] = final_payload.get("dealerHand", [])
+            return self.send_json(resp)
 
         return self.send_json({"error": "not_found"}, HTTPStatus.NOT_FOUND)
 

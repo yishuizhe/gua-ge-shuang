@@ -640,48 +640,99 @@
 
   // ---- Blackjack (21点) ----
   function renderBlackjack() {
-    const cardDisplay = {1:'A',11:'J',12:'Q',13:'K'};
-    const disp = n => cardDisplay[n] || String(n);
     const suits = ['♠','♥','♣','♦'];
-    const handHtml = (cards, label, val) => `<div class="baccarat-hand"><h4>${label}</h4>${cards.map(n => `<div class="card">${disp(n)}<span style="font-size:10px;display:block">${suits[Math.floor(Math.random()*4)]}</span></div>`).join('')}<div style="color:#cbbede;font-size:13px;margin-top:5px">点数: ${val}</div></div>`;
+    const disp = n => ({1:'A',11:'J',12:'Q',13:'K'}[n] || String(n));
     const hv = h => { let t = h.reduce((a,b)=>a+b,0); return h.includes(1) && t+10 <= 21 ? t+10 : t; };
-    const playerVal = hv(ticket.playerHand);
-    $('#stage').innerHTML = `<div class="arcade"><h2>🃏 21点</h2><div class="arcade-sub">庄家发牌，接近21点但不能超过</div>
-      <div class="baccarat-cards">
-        ${handHtml(ticket.playerHand, '你的牌', playerVal)}
-        ${handHtml(ticket.dealerHand.slice(0,1), '庄家', '?')}
-      </div>
-      <div style="margin-top:15px">
-        <button class="pusher-btn" id="bjHit" style="background:#e74c3c;margin-right:8px">要牌 (Hit)</button>
-        <button class="pusher-btn" id="bjStand" style="background:#2ecc71">停牌 (Stand)</button>
-      </div>
-      <div id="bjResult" style="margin-top:12px;font-weight:900"></div></div>`;
-    $('#bjHit').addEventListener('click', async () => {
-      $('#bjHit').disabled = true; $('#bjStand').disabled = true;
-      try {
-        await finishTicket({ action: 'hit' });
-        // Show final state
-        const pv = hv(ticket.playerHand);
-        const dv = hv(ticket.dealerHand);
-        $('#bjResult').innerHTML = `<div class="baccarat-cards">
-          ${handHtml(ticket.playerHand, '你的牌', pv)}
-          ${handHtml(ticket.dealerHand, '庄家', dv)}
-        </div>`;
-        setTimeout(() => { if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 2000);
-      } catch (e) { $('#bjHit').disabled = false; $('#bjStand').disabled = false; }
-    });
-    $('#bjStand').addEventListener('click', async () => {
-      $('#bjHit').disabled = true; $('#bjStand').disabled = true;
-      try {
-        await finishTicket({ action: 'stand' });
-        const dv = hv(ticket.dealerHand);
-        $('#bjResult').innerHTML = `<div class="baccarat-cards">
-          ${handHtml(ticket.playerHand, '你的牌', playerVal)}
-          ${handHtml(ticket.dealerHand, '庄家', dv)}
-        </div>`;
-        setTimeout(() => { if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 2000);
-      } catch (e) { $('#bjHit').disabled = false; $('#bjStand').disabled = false; }
-    });
+    const handHtml = (cards, label, val, hideSecond) => {
+      const visible = hideSecond ? [cards[0]] : cards;
+      return `<div class="baccarat-hand"><h4>${label}</h4>
+        ${visible.map(n => `<div class="card">${disp(n)}<span style="font-size:10px;display:block">${suits[Math.floor(Math.random()*4)]}</span></div>`).join('')}
+        ${hideSecond ? '<div class="card" style="background:#333;color:#333">?</div>' : ''}
+        <div style="color:#cbbede;font-size:13px;margin-top:5px">点数: ${hideSecond ? '?' : val}</div></div>`;
+    };
+
+    let pH = ticket.playerHand, dH = ticket.dealerHand;
+    let pV = hv(pH);
+
+    function render() {
+      $('#stage').innerHTML = `<div class="arcade"><h2>🃏 21点</h2><div class="arcade-sub">庄家发牌，接近21点但不能超过</div>
+        <div class="baccarat-cards" id="bjHands">
+          ${handHtml(pH, '你的牌', pV, false)}
+          ${handHtml(dH, '庄家', hv(dH), true)}
+        </div>
+        <div style="margin-top:15px" id="bjActions">
+          <button class="pusher-btn" id="bjHit" style="background:#e74c3c;margin-right:8px">要牌 (Hit)</button>
+          <button class="pusher-btn" id="bjStand" style="background:#2ecc71">停牌 (Stand)</button>
+        </div>
+        <div id="bjResult" style="margin-top:12px;font-weight:900;font-size:16px"></div></div>`;
+      bindButtons();
+    }
+
+    function bindButtons() {
+      const hitBtn = $('#bjHit'), standBtn = $('#bjStand');
+      if (!hitBtn) return;
+
+      hitBtn.addEventListener('click', async () => {
+        hitBtn.disabled = true; standBtn.disabled = true;
+        try {
+          const resp = await api(`/api/tickets/${encodeURIComponent(ticket.id)}/finish`, {
+            method: 'POST', body: JSON.stringify({ action: 'hit' })
+          });
+          applyServer(resp);
+
+          if (resp.hitOngoing) {
+            // Still playing - update cards
+            pH = resp.playerHand;
+            pV = resp.playerVal;
+            dH = resp.dealerHand;
+            $('#bjHands').innerHTML = handHtml(pH, '你的牌', pV, false) + handHtml(dH, '庄家', '?', true);
+            hitBtn.disabled = false; standBtn.disabled = false;
+          } else {
+            // Hand resolved
+            ticket.done = true;
+            pH = resp.playerHand || pH;
+            dH = resp.dealerHand || dH;
+            showResult(resp.win);
+          }
+        } catch (e) { toast(e.message); hitBtn.disabled = false; standBtn.disabled = false; }
+      });
+
+      standBtn.addEventListener('click', async () => {
+        hitBtn.disabled = true; standBtn.disabled = true;
+        try {
+          const resp = await api(`/api/tickets/${encodeURIComponent(ticket.id)}/finish`, {
+            method: 'POST', body: JSON.stringify({ action: 'stand' })
+          });
+          applyServer(resp);
+          ticket.done = true;
+          pH = resp.playerHand || pH;
+          dH = resp.dealerHand || dH;
+          showResult(resp.win);
+        } catch (e) { toast(e.message); hitBtn.disabled = false; standBtn.disabled = false; }
+      });
+    }
+
+    function showResult(win) {
+      const pvf = hv(pH), dvf = hv(dH);
+      const actionsEl = $('#bjActions');
+      if (actionsEl) actionsEl.style.display = 'none';
+      $('#bjHands').innerHTML = handHtml(pH, '你的牌', pvf, false) + handHtml(dH, '庄家', dvf, false);
+      let msg = '';
+      if (pvf > 21) msg = `爆牌了！点数 ${pvf}`;
+      else if (dvf > 21) msg = `庄家爆牌！你赢了`;
+      else if (pvf > dvf) msg = `你赢了！${pvf} vs ${dvf}`;
+      else if (pvf === dvf) msg = `平局！${pvf} vs ${dvf}`;
+      else msg = `庄家赢！${pvf} vs ${dvf}`;
+      if (win) msg += ` +${formatPrize(win)} 爽币`;
+      else if (pvf <= 21 && dvf <= 21 && pvf >= dvf) msg += ' (未中奖)';
+      $('#bjResult').textContent = msg;
+      if (win >= 100) { sfx('win'); burst(window.innerWidth/2, window.innerHeight*.48, 60); }
+      else if (win) sfx('reveal');
+      else sfx('lose');
+      setTimeout(() => { if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 2500);
+    }
+
+    render();
   }
 
   // ---- Dice (猜大小) ----
@@ -1224,11 +1275,14 @@
 
     $('#adminSave').addEventListener('click', async () => {
       const updates = {};
-      document.querySelectorAll('[data-key]').forEach(el => {
-        const v = el.value;
-        if (!isNaN(parseFloat(v)) && v.trim() !== '') updates[el.dataset.key] = parseFloat(v);
+      document.querySelectorAll('#adminContent [data-key]').forEach(el => {
+        const v = el.value.trim();
+        if (v === '') return; // skip empty values
+        const num = parseFloat(v);
+        if (!isNaN(num) && String(num) === v) updates[el.dataset.key] = num;
         else updates[el.dataset.key] = v;
       });
+      if (Object.keys(updates).length === 0) { toast('没有需要保存的修改'); return; }
       try {
         await apiAdmin('/admin/config', { method: 'POST', body: JSON.stringify(updates) });
         toast('配置已保存');
