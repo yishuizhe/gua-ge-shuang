@@ -326,7 +326,7 @@
         <div class="panel-title">中奖记录 <small id="recordsInfo">最近 10 条</small></div>
         <div class="record-list" id="records"></div>
         <div class="page-controls" id="recordsPages"></div>
-        <div class="panel-title">全服排行 <small>等级优先</small></div>
+        <div class="panel-title">全服排行 <small><button id="rankSortBtn" style="border:0;background:#f0dfc7;color:#7a4e35;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:10px;font-weight:700">等级榜</button></small></div>
         <div class="rank-list" id="rankList"></div>
         <div class="page-controls" id="rankPages"></div>
       </aside>
@@ -387,7 +387,7 @@
   const TOKEN_KEY = 'gua-shuang-player-token';
   let authToken = localStorage.getItem(TOKEN_KEY) || '';
   let state = {coins:200,xp:0,level:1,played:0,wins:0,best:0,streak:0,current:'xiangfeng',records:[],seen:[],nickname:'',playerId:''};
-  let leaderboard = [], leaderboardPage = 1, leaderboardPages = 1;
+  let leaderboard = [], leaderboardPage = 1, leaderboardPages = 1, rankSort = 'level';
   let recordsPage = 1, recordsPages = 1;
   let current = TYPES.find(t => t.id === state.current) || TYPES[0];
   let ticket = null, scratchers = [], audioCtx = null, soundOn = true, toastTimer;
@@ -504,7 +504,8 @@
 
   function renderRanks() {
     const medals = ['🥇', '🥈', '🥉'];
-    const html = leaderboard.length ? leaderboard.map((p, i) => `<div class="rank-row"><div class="rank-no ${i < 3 ? 'top' : ''}">${medals[i] || ((leaderboardPage - 1) * 10 + i + 1)}</div><div class="rank-name">${escapeHtml(p.nickname)}<small>${p.playerId} · ${p.played} 张</small></div><div class="rank-score">Lv.${p.level}</div></div>`).join('') : '<div class="record-empty">还没有排行数据</div>';
+    const isCoins = rankSort === 'coins';
+    const html = leaderboard.length ? leaderboard.map((p, i) => `<div class="rank-row"><div class="rank-no ${i < 3 ? 'top' : ''}">${medals[i] || ((leaderboardPage - 1) * 10 + i + 1)}</div><div class="rank-name">${escapeHtml(p.nickname)}<small>${p.playerId} · ${p.played} 张</small></div><div class="rank-score">${isCoins ? '🪙'+formatPrize(p.coins||0) : 'Lv.'+p.level}</div></div>`).join('') : '<div class="record-empty">还没有排行数据</div>';
     $('#rankList').innerHTML = html;
     $('#rankModalList').innerHTML = html;
     let ph = '';
@@ -523,10 +524,11 @@
 
   async function loadLeaderboard(page = 1) {
     try {
-      const data = await api(`/api/leaderboard?page=${page}&limit=10`);
+      const data = await api(`/api/leaderboard?page=${page}&limit=10&sort=${rankSort}`);
       leaderboard = data.leaderboard || [];
       leaderboardPage = data.page || 1;
       leaderboardPages = data.pages || 1;
+      $('#rankSortBtn').textContent = rankSort === 'coins' ? '金币榜' : '等级榜';
       renderRanks();
     } catch (e) {}
   }
@@ -1362,6 +1364,7 @@
   $('#closeWin').addEventListener('click', () => $('#bigWin').classList.remove('show'));
   $('#bigWin').addEventListener('click', e => { if (e.target.id === 'bigWin') e.currentTarget.classList.remove('show'); });
   $('#rankBtn').addEventListener('click', async () => { await loadLeaderboard(1); $('#leaderModal').classList.add('show'); });
+  $('#rankSortBtn').addEventListener('click', async () => { rankSort = rankSort === 'coins' ? 'level' : 'coins'; await loadLeaderboard(1); });
   $('#closeRank').addEventListener('click', () => $('#leaderModal').classList.remove('show'));
   $('#leaderModal').addEventListener('click', e => { if (e.target.id === 'leaderModal') e.currentTarget.classList.remove('show'); });
   $('#playerBtn').addEventListener('click', () => toast(`${state.nickname} · ${state.playerId}`));

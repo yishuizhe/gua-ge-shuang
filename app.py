@@ -186,6 +186,7 @@ def player_dict(row, include_private=True):
             "played": data["played"],
             "wins": data["wins"],
             "best": data["best"],
+            "coins": data["coins"],
         }
     return data
 
@@ -285,6 +286,7 @@ def roll_payout(ticket_type, streak, player_public_id=None):
     big_p = medium_p + bg_s
     super_p = big_p + sp_s
     diamond_p = super_p + dm_s
+    legend_p = min(1.0, diamond_p + lg_s)
 
     if roll < lose_p:
         return 0, "未中奖"
@@ -300,7 +302,9 @@ def roll_payout(ticket_type, streak, player_public_id=None):
         return 10000, "超级大奖"
     if roll < diamond_p:
         return 100000, "钻石大奖"
-    return 1000000, "传说大奖"
+    if roll < legend_p:
+        return 1000000, "传说大奖"
+    return 0, "未中奖"
 
 
 # ---------- ticket generators ----------
@@ -713,17 +717,22 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/leaderboard":
             page = max(1, int(params.get("page", "1")))
             limit = min(50, max(5, int(params.get("limit", "10"))))
+            sort = params.get("sort", "level")
             offset = (page - 1) * limit
+            if sort == "coins":
+                order = "coins DESC, level DESC"
+            else:
+                order = "level DESC, xp DESC, best DESC, wins DESC"
             with db() as conn:
                 rows = conn.execute(
-                    "SELECT * FROM players ORDER BY level DESC, xp DESC, best DESC, wins DESC LIMIT ? OFFSET ?",
+                    f"SELECT * FROM players ORDER BY {order} LIMIT ? OFFSET ?",
                     (limit, offset),
                 ).fetchall()
                 total = conn.execute("SELECT COUNT(*) FROM players").fetchone()[0]
             pages = max(1, (total + limit - 1) // limit)
             return self.send_json({
                 "leaderboard": [player_dict(row, False) for row in rows],
-                "total": total, "page": page, "pages": pages,
+                "total": total, "page": page, "pages": pages, "sort": sort,
             })
 
         # ---- player data with paginated records ----
