@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
+import ast
 import hashlib
 import json
+import operator
 import os
 import random
 import re
 import secrets
 import sqlite3
 import time
+from collections import defaultdict
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -17,25 +20,46 @@ DB_PATH = Path(os.environ.get("SCRATCH_DB", ROOT / "data" / "scratch_game.db"))
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8089"))
 
-TYPES = {
-    "xiangfeng": {"name": "喜相逢", "icon": "🏮", "cost": 10, "kind": "match", "jackpot": 1000},
-    "seven": {"name": "数字 7", "icon": "7️⃣", "cost": 15, "kind": "numbers", "jackpot": 3000},
-    "jinyu": {"name": "金玉满堂", "icon": "🧧", "cost": 20, "kind": "triple", "jackpot": 2000},
-    "ten": {"name": "好运十倍", "icon": "⚡", "cost": 30, "kind": "multi", "jackpot": 5000},
-    "koi": {"name": "锦鲤驾到", "icon": "🐟", "cost": 50, "kind": "koi", "jackpot": 10000},
-    "twentyfour": {"name": "24点挑战", "icon": "🧠", "cost": 10, "kind": "twentyfour", "jackpot": 50},
-    "pusher": {"name": "推币机", "icon": "🪙", "cost": 10, "kind": "pusher", "jackpot": 1000},
-    "claw": {"name": "抓娃娃机", "icon": "🕹️", "cost": 20, "kind": "claw", "jackpot": 2000},
+# ---------- admin credentials ----------
+ADMIN_USER = "ysz"
+ADMIN_PASS = "PASSWORD_REMOVED"
+# pbkdf2_hmac hash of admin password (generated at startup)
+_admin_salt = secrets.token_hex(16)
+_admin_hash = hashlib.pbkdf2_hmac("sha256", ADMIN_PASS.encode(), _admin_salt.encode(), 200_000).hex()
+_admin_sessions = {}  # token -> expiry timestamp
+
+# ---------- default payout config ----------
+DEFAULT_PAYOUT = {
+    "lose": 0.614,
+    "break_even": 0.23,
+    "small": 0.10,
+    "medium": 0.04,
+    "big": 0.009,
+    "super": 0.0008,   # 1万
+    "diamond": 0.00015,  # 10万
+    "legend": 0.00005,   # 100万
+    "pity_max": 0.04,
+    "pity_step": 0.002,
 }
 
-PUZZLES_24 = [
-    ([3, 3, 8, 8], ["8 ÷ (3 - 8 ÷ 3)", "(8 - 3) × (8 - 3)", "8 + 8 + 3 + 3", "8 × 3 + 8 ÷ 3"], 0),
-    ([1, 5, 5, 5], ["5 × 5 - 5 ÷ 1", "5 × (5 - 1 ÷ 5)", "(5 - 1) × 5 + 5", "5 + 5 + 5 + 1"], 1),
-    ([1, 3, 4, 6], ["6 ÷ (1 - 3 ÷ 4)", "(6 - 1) × 4 + 3", "6 × 4 + 3 - 1", "(6 + 3 - 1) × 4"], 0),
-    ([2, 3, 4, 6], ["6 ÷ 2 × (4 + 3)", "6 × 4 ÷ (3 - 2)", "(6 - 2) × (4 + 3)", "6 + 4 × 3 + 2"], 1),
-    ([2, 3, 3, 8], ["8 × 3 × (3 - 2)", "8 × 3 + 3 - 2", "(8 - 2) × (3 + 3)", "8 + 3 × 3 + 2"], 0),
-    ([2, 2, 5, 10], ["(10 - 2) × (5 - 2)", "(10 + 2) × (5 - 2)", "10 ÷ 2 × 5 - 2", "10 + 5 × 2 + 2"], 0),
-]
+# ---------- game types ----------
+TYPES = {
+    "xiangfeng": {"name": "喜相逢", "icon": "🏮", "cost": 10, "kind": "match"},
+    "seven": {"name": "数字 7", "icon": "7️⃣", "cost": 15, "kind": "numbers"},
+    "jinyu": {"name": "金玉满堂", "icon": "🧧", "cost": 20, "kind": "triple"},
+    "ten": {"name": "好运十倍", "icon": "⚡", "cost": 30, "kind": "multi"},
+    "koi": {"name": "锦鲤驾到", "icon": "🐟", "cost": 50, "kind": "koi"},
+    "twentyfour": {"name": "24点挑战", "icon": "🧠", "cost": 10, "kind": "twentyfour"},
+    "pusher": {"name": "推币机", "icon": "🪙", "cost": 10, "kind": "pusher"},
+    "claw": {"name": "抓娃娃机", "icon": "🕹️", "cost": 20, "kind": "claw"},
+    "ssq": {"name": "双色球", "icon": "🔴", "cost": 2, "kind": "ssq"},
+    "baccarat": {"name": "百家乐", "icon": "🃏", "cost": 25, "kind": "baccarat"},
+    "slots": {"name": "水果机", "icon": "🍒", "cost": 5, "kind": "slots"},
+    "pinball": {"name": "弹珠台", "icon": "🔮", "cost": 8, "kind": "pinball"},
+    "wheel": {"name": "幸运转盘", "icon": "🎡", "cost": 10, "kind": "wheel"},
+}
+
+SUPER_PRIZES = [1000000, 100000, 10000]  # legend, diamond, super
 
 
 def db():
@@ -64,6 +88,7 @@ def init_db():
                 best INTEGER NOT NULL DEFAULT 0,
                 streak INTEGER NOT NULL DEFAULT 0,
                 seen TEXT NOT NULL DEFAULT '[]',
+                last_ticket_at REAL NOT NULL DEFAULT 0,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
             );
@@ -84,12 +109,50 @@ def init_db():
                 win INTEGER NOT NULL,
                 created_at INTEGER NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS admin_config (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
             CREATE INDEX IF NOT EXISTS idx_records_player ON records(player_id, id DESC);
             CREATE INDEX IF NOT EXISTS idx_players_rank ON players(level DESC, xp DESC, best DESC);
             """
         )
+        # migrations for existing databases
+        try:
+            conn.execute("ALTER TABLE players ADD COLUMN last_ticket_at REAL NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+        # ensure default config exists
+        for k, v in DEFAULT_PAYOUT.items():
+            conn.execute(
+                "INSERT OR IGNORE INTO admin_config(key, value) VALUES(?, ?)",
+                (k, str(v)),
+            )
 
 
+# ---------- config helpers ----------
+def get_config():
+    with db() as conn:
+        rows = conn.execute("SELECT key, value FROM admin_config").fetchall()
+    cfg = {}
+    for r in rows:
+        try:
+            cfg[r["key"]] = float(r["value"])
+        except ValueError:
+            cfg[r["key"]] = r["value"]
+    return cfg
+
+
+def set_config(updates):
+    with db() as conn:
+        for k, v in updates.items():
+            conn.execute(
+                "INSERT OR REPLACE INTO admin_config(key, value) VALUES(?, ?)",
+                (k, str(v)),
+            )
+
+
+# ---------- auth ----------
 def token_hash(token):
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
@@ -120,11 +183,16 @@ def player_dict(row, include_private=True):
     return data
 
 
-def records_for(conn, player_id):
+# ---------- paginated records ----------
+def records_for(conn, player_id, page=1, limit=10):
+    offset = (page - 1) * limit
     rows = conn.execute(
-        "SELECT ticket_type, win, created_at FROM records WHERE player_id=? ORDER BY id DESC LIMIT 8",
-        (player_id,),
+        "SELECT ticket_type, win, created_at FROM records WHERE player_id=? ORDER BY id DESC LIMIT ? OFFSET ?",
+        (player_id, limit, offset),
     ).fetchall()
+    total = conn.execute(
+        "SELECT COUNT(*) FROM records WHERE player_id=?", (player_id,)
+    ).fetchone()[0]
     return [
         {
             "icon": TYPES[row["ticket_type"]]["icon"],
@@ -133,58 +201,222 @@ def records_for(conn, player_id):
             "time": time.strftime("%H:%M", time.localtime(row["created_at"])),
         }
         for row in rows
-    ]
+    ], total
 
 
+# ---------- rate limiting ----------
+RATE_IP = defaultdict(list)  # ip -> [timestamps]
+
+
+def check_rate_limit(player_row, client_ip):
+    """Returns (allowed, reason) tuple."""
+    now = time.time()
+
+    # per-player cooldown: 2 seconds between tickets
+    last = player_row["last_ticket_at"]
+    if last and (now - last) < 2.0:
+        remaining = round(2.0 - (now - last), 1)
+        return False, f"请稍候 {remaining} 秒后再购买"
+
+    # per-player daily limit: 200 tickets
+    today_start = now - (now % 86400)
+    with db() as conn:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM tickets WHERE player_id=? AND created_at >= ?",
+            (player_row["id"], int(today_start)),
+        ).fetchone()[0]
+    if count >= 200:
+        return False, "今日购票已达上限 (200张)"
+
+    # per-IP rate limit: 30 requests per minute
+    cutoff = now - 60
+    RATE_IP[client_ip] = [t for t in RATE_IP.get(client_ip, []) if t > cutoff]
+    if len(RATE_IP.get(client_ip, [])) >= 30:
+        return False, "请求过于频繁，请稍后再试"
+
+    RATE_IP.setdefault(client_ip, []).append(now)
+    return True, ""
+
+
+# ---------- payout engine ----------
 def roll_payout(ticket_type, streak):
-    """Return a server-authoritative payout.
-
-    Base distribution: 62% lose, 23% break even, 10% 2x, 4% 5x,
-    0.9% 10x and 0.1% jackpot. Streak only shifts up to 4 percentage
-    points from losing tickets into the break-even tier.
-    """
-    config = TYPES[ticket_type]
-    cost = config["cost"]
-    pity = min(0.04, streak * 0.002)
+    """Server-authoritative payout with configurable tiers."""
+    cfg = get_config()
+    cost = TYPES[ticket_type]["cost"]
+    pity = min(cfg.get("pity_max", 0.04), streak * cfg.get("pity_step", 0.002))
     roll = random.random()
-    if roll < 0.62 - pity:
+
+    lose_p = cfg.get("lose", 0.614) - pity
+    be_p = lose_p + cfg.get("break_even", 0.23)
+    small_p = be_p + cfg.get("small", 0.10)
+    medium_p = small_p + cfg.get("medium", 0.04)
+    big_p = medium_p + cfg.get("big", 0.009)
+    super_p = big_p + cfg.get("super", 0.0008)
+    diamond_p = super_p + cfg.get("diamond", 0.00015)
+
+    if roll < lose_p:
         return 0, "未中奖"
-    if roll < 0.85:
+    if roll < be_p:
         return cost, "回本"
-    if roll < 0.95:
+    if roll < small_p:
         return cost * 2, "小奖"
-    if roll < 0.99:
+    if roll < medium_p:
         return cost * 5, "中奖"
-    if roll < 0.999:
+    if roll < big_p:
         return cost * 10, "大奖"
-    return config["jackpot"], "最高奖"
+    if roll < super_p:
+        return 10000, "超级大奖"
+    if roll < diamond_p:
+        return 100000, "钻石大奖"
+    return 1000000, "传说大奖"
 
 
+# ---------- 24-point: safe expression evaluator ----------
+ALLOWED_OPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.USub: operator.neg,
+}
+
+
+def _eval_ast(node):
+    if isinstance(node, ast.Constant):
+        return node.value
+    if isinstance(node, ast.BinOp):
+        left = _eval_ast(node.left)
+        right = _eval_ast(node.right)
+        op_type = type(node.op)
+        if op_type not in ALLOWED_OPS:
+            raise ValueError("unsupported operator")
+        result = ALLOWED_OPS[op_type](left, right)
+        return result
+    if isinstance(node, ast.UnaryOp):
+        operand = _eval_ast(node.operand)
+        op_type = type(node.op)
+        if op_type not in ALLOWED_OPS:
+            raise ValueError("unsupported operator")
+        return ALLOWED_OPS[op_type](operand)
+    raise ValueError("unsupported expression")
+
+
+def safe_eval(expr):
+    """Safely evaluate an arithmetic expression using AST."""
+    expr = expr.strip()
+    if not expr:
+        raise ValueError("empty expression")
+    # Only allow digits, operators, parentheses, whitespace, decimal point
+    if not re.match(r'^[\d\s+\-*/().]+$', expr):
+        raise ValueError("表达式包含非法字符")
+    tree = ast.parse(expr, mode='eval')
+    return _eval_ast(tree.body)
+
+
+def validate_24_answer(expr, numbers):
+    """Validate that expr uses exactly the given numbers and equals 24."""
+    # Extract numbers from expression
+    expr_nums = [int(n) for n in re.findall(r'\d+', expr)]
+    expected = sorted(numbers)
+    got = sorted(expr_nums)
+    if got != expected:
+        return False, f"必须恰好使用数字 {expected}，你用了 {got}"
+    try:
+        result = safe_eval(expr)
+    except (ValueError, ZeroDivisionError) as e:
+        return False, f"算式错误: {e}"
+    # Allow small floating point tolerance
+    if abs(result - 24) > 0.001:
+        return False, f"算式结果 = {result}，不是 24"
+    return True, "回答正确！"
+
+
+# ---------- ticket generators ----------
 def generate_ticket(ticket_type, streak):
     kind = TYPES[ticket_type]["kind"]
+    cost = TYPES[ticket_type]["cost"]
     cells, winning = [], []
+
+    # ---- 24-point: dealer deals 4 cards ----
     if kind == "twentyfour":
-        numbers, options, answer = random.choice(PUZZLES_24)
+        # Deal 4 cards with guaranteed solvability
+        solvable_sets = [
+            [1, 2, 3, 4], [1, 3, 5, 6], [2, 3, 4, 6], [3, 3, 8, 8],
+            [1, 5, 5, 5], [2, 2, 5, 10], [2, 3, 3, 8], [1, 3, 4, 6],
+            [2, 4, 6, 8], [3, 4, 5, 6], [4, 4, 7, 7], [2, 5, 7, 8],
+            [1, 4, 5, 6], [2, 3, 5, 8], [3, 5, 7, 8], [1, 6, 7, 8],
+            [2, 4, 5, 7], [3, 4, 7, 8], [4, 5, 6, 7], [2, 6, 7, 8],
+        ]
+        numbers = random.choice(solvable_sets)
+        random.shuffle(numbers)
+        # Card display: A=1, 2-10, J=11, Q=12, K=13
+        card_map = {1: "A", 11: "J", 12: "Q", 13: "K"}
+        cards = [{"value": n, "display": card_map.get(n, str(n)), "suit": random.choice(["♠", "♥", "♣", "♦"])} for n in numbers]
         return {
-            "mode": "twentyfour", "numbers": numbers, "options": options,
-            "_answer": answer, "resultText": "算式等于 24 即挑战成功",
-            "prizeTier": "技巧奖", "maxPrize": TYPES[ticket_type]["jackpot"],
+            "mode": "twentyfour",
+            "cards": cards,
+            "_numbers": numbers,
+            "resultText": "使用全部4张牌，通过加减乘除凑出24",
+            "prizeTier": "技巧奖",
+            "maxPrize": 50,
         }, 50
-    win, prize_tier = roll_payout(ticket_type, streak)
+
+    # ---- coin pusher (enhanced) ----
     if kind == "pusher":
+        win, prize_tier = roll_payout(ticket_type, streak)
+        # Generate coin positions on the shelf
+        coins = []
+        for i in range(random.randint(15, 30)):
+            coins.append({
+                "x": round(random.uniform(0.05, 0.95), 3),
+                "y": round(random.uniform(0.05, 0.85), 3),
+                "size": random.choice([0.8, 1.0, 1.2]),
+            })
         return {
-            "mode": "pusher", "drop": random.randint(1, 5),
+            "mode": "pusher",
+            "coins": coins,
+            "dropZone": round(random.uniform(0.1, 0.9), 2),
             "resultText": "推板前进，看看有多少爽币落袋",
-            "prizeTier": prize_tier, "maxPrize": TYPES[ticket_type]["jackpot"],
+            "prizeTier": prize_tier,
+            "maxPrize": 1000000,
         }, win
+
+    # ---- claw machine (enhanced) ----
     if kind == "claw":
-        toys = ["🐼", "🦁", "🐰", "🐻", "🐸"]
-        winning_slot = random.randrange(len(toys)) if win else -1
+        win, prize_tier = roll_payout(ticket_type, streak)
+        toys = []
+        toy_types = [
+            {"emoji": "🐼", "name": "熊猫", "size": 1.0},
+            {"emoji": "🦁", "name": "狮子", "size": 1.1},
+            {"emoji": "🐰", "name": "兔子", "size": 0.9},
+            {"emoji": "🐻", "name": "小熊", "size": 1.0},
+            {"emoji": "🐸", "name": "青蛙", "size": 0.85},
+            {"emoji": "🐱", "name": "猫咪", "size": 0.9},
+            {"emoji": "🦊", "name": "狐狸", "size": 0.95},
+            {"emoji": "🐨", "name": "考拉", "size": 0.9},
+        ]
+        chosen = random.sample(toy_types, 6)
+        winning_idx = random.randrange(len(chosen)) if win else -1
+        for i, t in enumerate(chosen):
+            toys.append({
+                "emoji": t["emoji"],
+                "name": t["name"],
+                "size": t["size"],
+                "x": round(0.08 + i * 0.14 + random.uniform(-0.02, 0.02), 3),
+                "isWinner": i == winning_idx,
+            })
         return {
-            "mode": "claw", "toys": toys, "_winningSlot": winning_slot,
-            "resultText": "选中娃娃，启动机械爪",
-            "prizeTier": prize_tier, "maxPrize": TYPES[ticket_type]["jackpot"],
+            "mode": "claw",
+            "toys": toys,
+            "_winningSlot": winning_idx,
+            "resultText": "移动机械爪，抓取心仪的娃娃",
+            "prizeTier": prize_tier,
+            "maxPrize": 1000000,
         }, win
+
+    # ---- existing scratch card types ----
+    win, prize_tier = roll_payout(ticket_type, streak)
+
     if kind == "match":
         ordinary = [
             ("🏮", "灯笼"), ("💰", "元宝"), ("🪄", "如意"), ("🍑", "寿桃"),
@@ -195,7 +427,7 @@ def generate_ticket(ticket_type, streak):
             symbol, tag = random.choice(ordinary)
             cells.append({"symbol": symbol, "tag": tag, "prize": random.choice([5, 5, 8, 10, 10, 15, 20, 30])})
         if win:
-            if prize_tier == "最高奖":
+            if win >= 10000:
                 cells[random.randrange(30)] = {"symbol": "囍", "tag": "双喜", "prize": win // 2}
             else:
                 cells[random.randrange(30)] = {"symbol": "喜", "tag": "喜事", "prize": win}
@@ -207,7 +439,7 @@ def generate_ticket(ticket_type, streak):
                 number = random.randint(1, 99)
             cells.append({"symbol": str(number).zfill(2), "prize": random.choice([5, 10, 10, 15, 20, 30, 50])})
         if win:
-            if prize_tier == "最高奖":
+            if win >= 10000:
                 cells[random.randrange(20)] = {"symbol": "777", "prize": win // 3, "jackpot": True}
             else:
                 cells[random.randrange(20)] = {
@@ -220,7 +452,6 @@ def generate_ticket(ticket_type, streak):
         target_treasure = random.choice(treasures) if win else None
         safe_treasures = [item for item in treasures if item != target_treasure]
         spots = random.sample(range(9), 3) if win else []
-        # Keep every non-winning symbol below three occurrences.
         pool = safe_treasures * 2
         random.shuffle(pool)
         for index in range(9):
@@ -235,7 +466,7 @@ def generate_ticket(ticket_type, streak):
                 cells[spot] = {"symbol": symbol, "tag": tag, "prize": win if index == 0 else 0}
         result_text = "三宝同堂，福气装满口袋" if win else "宝物还没聚齐，再来一张"
     elif kind == "multi":
-        target, multiplier = random.randint(1, 12), 2
+        target, multiplier = random.randint(1, 12), random.choice([2, 2, 3, 3, 5, 10])
         winning = [{"symbol": target, "tag": "幸运数字"}, {"symbol": f"×{multiplier}", "tag": "全票倍数"}]
         cells = []
         for _ in range(9):
@@ -246,27 +477,166 @@ def generate_ticket(ticket_type, streak):
         if win:
             cells[random.randrange(9)] = {"symbol": target, "prize": win // multiplier}
         result_text = f"幸运数字命中，爽币 ×{multiplier}" if win else "倍数已就位，只差一次命中"
-    else:
+    elif kind == "koi":
         cells = [{"symbol": random.choice(["🌊", "🫧", "🪷", "🐚"]), "tag": "好运池", "prize": 0} for _ in range(9)]
         if win:
-            if prize_tier == "最高奖":
+            if win >= 10000:
                 first, second = random.sample(range(9), 2)
                 cells[first] = {"symbol": "🐟", "tag": "锦鲤", "prize": win // 4}
                 cells[second] = {"symbol": "🐟", "tag": "锦鲤", "prize": win // 4}
             else:
                 cells[random.randrange(9)] = {"symbol": "🐟", "tag": "锦鲤", "prize": win}
-        result_text = "双锦鲤驾到，奖金再翻倍" if prize_tier == "最高奖" else "锦鲤上岸，好运到家" if win else "锦鲤游走了，下一池再见"
+        result_text = "双锦鲤驾到，奖金再翻倍" if win >= 10000 else "锦鲤上岸，好运到家" if win else "锦鲤游走了，下一池再见"
+
+    # ---- new: SSQ (双色球) ----
+    elif kind == "ssq":
+        win, prize_tier = roll_payout(ticket_type, streak)
+        # Generate player numbers and winning numbers
+        player_reds = sorted(random.sample(range(1, 34), 6))
+        player_blue = random.randint(1, 16)
+        server_reds = sorted(random.sample(range(1, 34), 6))
+        server_blue = random.randint(1, 16)
+        red_matches = len(set(player_reds) & set(server_reds))
+        blue_match = player_blue == server_blue
+        return {
+            "mode": "ssq",
+            "playerReds": player_reds,
+            "playerBlue": player_blue,
+            "serverReds": server_reds,
+            "serverBlue": server_blue,
+            "_redMatches": red_matches,
+            "_blueMatch": blue_match,
+            "_win": win,
+            "resultText": f"红球 {len(set(player_reds) & set(server_reds))} 个匹配，蓝球{'匹配' if blue_match else '未匹配'}",
+            "prizeTier": prize_tier,
+            "maxPrize": 1000000,
+        }, win
+
+    # ---- new: baccarat ----
+    elif kind == "baccarat":
+        win, prize_tier = roll_payout(ticket_type, streak)
+        # Simulate a hand
+        player_hand = [random.randint(1, 9), random.randint(1, 9)]
+        banker_hand = [random.randint(1, 9), random.randint(1, 9)]
+        player_total = sum(player_hand) % 10
+        banker_total = sum(banker_hand) % 10
+        if player_total > banker_total:
+            result = "闲"
+        elif banker_total > player_total:
+            result = "庄"
+        else:
+            result = "和"
+        return {
+            "mode": "baccarat",
+            "playerHand": player_hand,
+            "bankerHand": banker_hand,
+            "playerTotal": player_total,
+            "bankerTotal": banker_total,
+            "result": result,
+            "_win": win,
+            "resultText": f"{result}赢{' (和局)' if result == '和' else ''}",
+            "prizeTier": prize_tier,
+            "maxPrize": 1000000,
+        }, win
+
+    # ---- new: slots ----
+    elif kind == "slots":
+        fruits = ["🍒", "🍋", "🍊", "🍇", "💎", "7️⃣", "⭐"]
+        weights = [30, 25, 20, 12, 6, 4, 3]
+        reels = []
+        for _ in range(3):
+            reel = []
+            for _ in range(12):
+                reel.append(random.choices(fruits, weights=weights)[0])
+            reels.append(reel)
+        # Determine win from final positions
+        final = [reel[5] for reel in reels]
+        if final[0] == final[1] == final[2]:
+            multiplier = 8
+        elif final[0] == final[1] or final[1] == final[2]:
+            multiplier = 3
+        else:
+            multiplier = 0
+        actual_win = win if multiplier else 0
+        return {
+            "mode": "slots",
+            "reels": reels,
+            "_final": final,
+            "_multiplier": multiplier,
+            "resultText": "转轮停止，看看你的运气",
+            "prizeTier": prize_tier,
+            "maxPrize": 1000000,
+        }, actual_win
+
+    # ---- new: pinball ----
+    elif kind == "pinball":
+        slots_payouts = [0, cost, cost, cost * 2, cost * 2, cost * 3, cost * 5, cost * 10]
+        slot_labels = ["空", "回本", "回本", "小奖", "小奖", "中奖", "大奖", "超级"]
+        win, prize_tier = roll_payout(ticket_type, streak)
+        target_slot = random.choices(
+            range(len(slots_payouts)),
+            weights=[40, 20, 15, 10, 7, 5, 2, 1]
+        )[0]
+        if win:
+            # force win to a paying slot
+            paying_slots = [i for i, p in enumerate(slots_payouts) if p > 0]
+            target_slot = random.choice(paying_slots)
+        return {
+            "mode": "pinball",
+            "slots": [{"label": l, "payout": p} for l, p in zip(slot_labels, slots_payouts)],
+            "_targetSlot": target_slot,
+            "resultText": "弹珠落下，看看落入哪个奖池",
+            "prizeTier": prize_tier,
+            "maxPrize": 1000000,
+        }, win
+
+    # ---- new: wheel ----
+    elif kind == "wheel":
+        segments = [
+            {"label": "空", "payout": 0, "color": "#888"},
+            {"label": "回本", "payout": cost, "color": "#f0ad4e"},
+            {"label": "小奖", "payout": cost * 2, "color": "#5bc0de"},
+            {"label": "中奖", "payout": cost * 5, "color": "#d9534f"},
+            {"label": "大奖", "payout": cost * 10, "color": "#ff6384"},
+            {"label": "超级", "payout": cost * 50, "color": "#ffd700"},
+        ]
+        weights = [50, 25, 15, 7, 2.5, 0.5]
+        win, prize_tier = roll_payout(ticket_type, streak)
+        target_seg = random.choices(range(len(segments)), weights=weights)[0]
+        if not win:
+            target_seg = 0  # force lose
+        return {
+            "mode": "wheel",
+            "segments": segments,
+            "_targetSegment": target_seg,
+            "resultText": "转盘旋转，指针停在哪里？",
+            "prizeTier": prize_tier,
+            "maxPrize": 1000000,
+        }, win
+
+    else:
+        cells = [{"symbol": random.choice(["🌊", "🫧", "🪷", "🐚"]), "tag": "好运池", "prize": 0} for _ in range(9)]
+        if win:
+            if win >= 10000:
+                first, second = random.sample(range(9), 2)
+                cells[first] = {"symbol": "🐟", "tag": "锦鲤", "prize": win // 4}
+                cells[second] = {"symbol": "🐟", "tag": "锦鲤", "prize": win // 4}
+            else:
+                cells[random.randrange(9)] = {"symbol": "🐟", "tag": "锦鲤", "prize": win}
+        result_text = "双锦鲤驾到，奖金再翻倍" if win >= 10000 else "锦鲤上岸，好运到家" if win else "锦鲤游走了，下一池再见"
+
     return {
         "cells": cells,
         "winning": winning,
         "resultText": result_text,
         "prizeTier": prize_tier,
-        "maxPrize": TYPES[ticket_type]["jackpot"],
+        "maxPrize": 1000000 if win >= 10000 else TYPES[ticket_type].get("jackpot", cost * 10),
     }, win
 
 
+# ---------- HTTP Handler ----------
 class Handler(SimpleHTTPRequestHandler):
-    server_version = "ScratchGame/1.0"
+    server_version = "ScratchGame/2.0"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -293,35 +663,132 @@ class Handler(SimpleHTTPRequestHandler):
         except (ValueError, json.JSONDecodeError):
             return None
 
+    @property
+    def client_ip(self):
+        forwarded = self.headers.get("X-Forwarded-For", "")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        return self.client_address[0]
+
     def auth_player(self, conn):
         header = self.headers.get("Authorization", "")
         if not header.startswith("Bearer "):
             return None
         return conn.execute("SELECT * FROM players WHERE token_hash=?", (token_hash(header[7:]),)).fetchone()
 
+    # ---------- GET ----------
     def do_GET(self):
         path = urlparse(self.path).path
+        qs = urlparse(self.path).query
+        params = {}
+        if qs:
+            for pair in qs.split("&"):
+                if "=" in pair:
+                    k, v = pair.split("=", 1)
+                    params[k] = v
+
         if path == "/api/health":
             return self.send_json({"ok": True})
+
+        # ---- admin GET routes ----
+        if path == "/admin/config":
+            admin_token = self.headers.get("X-Admin-Token", "")
+            if admin_token not in _admin_sessions or _admin_sessions[admin_token] < time.time():
+                return self.send_json({"error": "admin_unauthorized"}, HTTPStatus.UNAUTHORIZED)
+            return self.send_json({"config": get_config()})
+
+        if path == "/admin/stats":
+            admin_token = self.headers.get("X-Admin-Token", "")
+            if admin_token not in _admin_sessions or _admin_sessions[admin_token] < time.time():
+                return self.send_json({"error": "admin_unauthorized"}, HTTPStatus.UNAUTHORIZED)
+            with db() as conn:
+                total_players = conn.execute("SELECT COUNT(*) FROM players").fetchone()[0]
+                total_tickets = conn.execute("SELECT COUNT(*) FROM tickets").fetchone()[0]
+                total_settled = conn.execute("SELECT COUNT(*) FROM tickets WHERE settled=1").fetchone()[0]
+                total_payout = conn.execute("SELECT COALESCE(SUM(win), 0) FROM tickets WHERE settled=1").fetchone()[0]
+                total_coins = conn.execute("SELECT COALESCE(SUM(coins), 0) FROM players").fetchone()[0]
+            return self.send_json({
+                "totalPlayers": total_players,
+                "totalTickets": total_tickets,
+                "totalSettled": total_settled,
+                "totalPayout": total_payout,
+                "totalCoins": total_coins,
+            })
+
+        # ---- leaderboard with pagination ----
         if path == "/api/leaderboard":
+            page = max(1, int(params.get("page", "1")))
+            limit = min(50, max(5, int(params.get("limit", "20"))))
+            offset = (page - 1) * limit
             with db() as conn:
                 rows = conn.execute(
-                    "SELECT * FROM players ORDER BY level DESC, xp DESC, best DESC, wins DESC LIMIT 20"
+                    "SELECT * FROM players ORDER BY level DESC, xp DESC, best DESC, wins DESC LIMIT ? OFFSET ?",
+                    (limit, offset),
                 ).fetchall()
-            return self.send_json({"leaderboard": [player_dict(row, False) for row in rows]})
+                total = conn.execute("SELECT COUNT(*) FROM players").fetchone()[0]
+            pages = max(1, (total + limit - 1) // limit)
+            return self.send_json({
+                "leaderboard": [player_dict(row, False) for row in rows],
+                "total": total, "page": page, "pages": pages,
+            })
+
+        # ---- player data with paginated records ----
         if path == "/api/me":
+            records_page = max(1, int(params.get("records_page", "1")))
+            records_limit = min(50, max(5, int(params.get("records_limit", "10"))))
             with db() as conn:
                 player = self.auth_player(conn)
                 if not player:
                     return self.send_json({"error": "unauthorized"}, HTTPStatus.UNAUTHORIZED)
-                return self.send_json({"player": player_dict(player), "records": records_for(conn, player["id"])})
+                recs, recs_total = records_for(conn, player["id"], records_page, records_limit)
+                return self.send_json({
+                    "player": player_dict(player),
+                    "records": recs,
+                    "records_total": recs_total,
+                    "records_page": records_page,
+                    "records_pages": max(1, (recs_total + records_limit - 1) // records_limit),
+                })
+
         return super().do_GET()
 
+    # ---------- POST ----------
     def do_POST(self):
         path = urlparse(self.path).path
         data = self.read_json()
         if data is None:
             return self.send_json({"error": "invalid_json"}, HTTPStatus.BAD_REQUEST)
+
+        # ---- admin routes ----
+        if path == "/admin/login":
+            username = str(data.get("username", ""))
+            password = str(data.get("password", ""))
+            if username != ADMIN_USER:
+                return self.send_json({"error": "用户名错误"}, HTTPStatus.UNAUTHORIZED)
+            h = hashlib.pbkdf2_hmac("sha256", password.encode(), _admin_salt.encode(), 200_000).hex()
+            if h != _admin_hash:
+                return self.send_json({"error": "密码错误"}, HTTPStatus.UNAUTHORIZED)
+            token = secrets.token_urlsafe(32)
+            _admin_sessions[token] = time.time() + 3600  # 1-hour session
+            # Clean expired sessions
+            now = time.time()
+            for k in list(_admin_sessions):
+                if _admin_sessions[k] < now:
+                    del _admin_sessions[k]
+            return self.send_json({"token": token})
+
+        if path == "/admin/config":
+            admin_token = self.headers.get("X-Admin-Token", "")
+            if admin_token not in _admin_sessions or _admin_sessions[admin_token] < time.time():
+                return self.send_json({"error": "admin_unauthorized"}, HTTPStatus.UNAUTHORIZED)
+            allowed_keys = set(DEFAULT_PAYOUT.keys())
+            updates = {k: v for k, v in data.items() if k in allowed_keys}
+            if updates:
+                set_config(updates)
+            return self.send_json({"config": get_config()})
+
+        # admin stats handled in do_GET
+
+        # ---- register ----
         if path == "/api/register":
             nickname = re.sub(r"\s+", " ", str(data.get("nickname", "")).strip())
             if not 2 <= len(nickname) <= 16 or any(ord(c) < 32 for c in nickname):
@@ -342,7 +809,9 @@ class Handler(SimpleHTTPRequestHandler):
                         continue
                 else:
                     return self.send_json({"error": "create_failed"}, HTTPStatus.INTERNAL_SERVER_ERROR)
-            return self.send_json({"token": token, "player": player_dict(player), "records": []}, HTTPStatus.CREATED)
+            return self.send_json({"token": token, "player": player_dict(player), "records": [], "records_total": 0}, HTTPStatus.CREATED)
+
+        # ---- buy ticket ----
         if path == "/api/tickets":
             ticket_type = str(data.get("type", ""))
             if ticket_type not in TYPES:
@@ -352,22 +821,42 @@ class Handler(SimpleHTTPRequestHandler):
                 player = self.auth_player(conn)
                 if not player:
                     return self.send_json({"error": "unauthorized"}, HTTPStatus.UNAUTHORIZED)
+
+                # rate limiting
+                allowed, reason = check_rate_limit(player, self.client_ip)
+                if not allowed:
+                    return self.send_json({"error": reason}, HTTPStatus.TOO_MANY_REQUESTS)
+
                 cost = TYPES[ticket_type]["cost"]
                 coins = player["coins"]
                 gift = 0
                 if coins < cost:
                     gift = 100
                     coins += gift
+
                 payload, win = generate_ticket(ticket_type, player["streak"])
                 ticket_id = secrets.token_urlsafe(18)
-                conn.execute("UPDATE players SET coins=?,updated_at=? WHERE id=?", (coins - cost, int(time.time()), player["id"]))
+                now = int(time.time())
+
+                conn.execute(
+                    "UPDATE players SET coins=?, updated_at=?, last_ticket_at=? WHERE id=?",
+                    (coins - cost, now, time.time(), player["id"]),
+                )
                 conn.execute(
                     "INSERT INTO tickets(id,player_id,ticket_type,payload,win,created_at) VALUES(?,?,?,?,?,?)",
-                    (ticket_id, player["id"], ticket_type, json.dumps(payload, ensure_ascii=False), win, int(time.time())),
+                    (ticket_id, player["id"], ticket_type, json.dumps(payload, ensure_ascii=False), win, now),
                 )
                 player = conn.execute("SELECT * FROM players WHERE id=?", (player["id"],)).fetchone()
+
             public_payload = {key: value for key, value in payload.items() if not key.startswith("_")}
-            return self.send_json({"ticketId": ticket_id, "ticket": public_payload, "player": player_dict(player), "gift": gift})
+            return self.send_json({
+                "ticketId": ticket_id,
+                "ticket": public_payload,
+                "player": player_dict(player),
+                "gift": gift,
+            })
+
+        # ---- finish ticket ----
         match = re.fullmatch(r"/api/tickets/([A-Za-z0-9_-]+)/finish", path)
         if match:
             with db() as conn:
@@ -383,13 +872,16 @@ class Handler(SimpleHTTPRequestHandler):
                 if not ticket_row["settled"]:
                     payload = json.loads(ticket_row["payload"])
                     win = ticket_row["win"]
+
+                    # 24-point answer validation
                     if payload.get("mode") == "twentyfour":
-                        try:
-                            answer = int(data.get("answer", -1))
-                        except (TypeError, ValueError):
-                            answer = -1
-                        if answer != payload["_answer"]:
+                        answer = str(data.get("answer", "")).strip()
+                        valid, msg = validate_24_answer(answer, payload["_numbers"])
+                        if not valid:
                             win = 0
+                            payload["_validation_msg"] = msg
+
+                    # claw machine
                     elif payload.get("mode") == "claw":
                         try:
                             slot = int(data.get("slot", -1))
@@ -397,6 +889,17 @@ class Handler(SimpleHTTPRequestHandler):
                             slot = -1
                         if slot != payload["_winningSlot"]:
                             win = 0
+
+                    # ssq - already server-determined
+                    elif payload.get("mode") == "ssq":
+                        win = payload["_win"]
+
+                    # baccarat - server-determined
+                    elif payload.get("mode") == "baccarat":
+                        win = payload["_win"]
+
+                    # pusher, slots, pinball, wheel - win already set
+
                     played = player["played"] + 1
                     wins = player["wins"] + (1 if win else 0)
                     streak = player["streak"] + 1 if win else 0
@@ -411,7 +914,7 @@ class Handler(SimpleHTTPRequestHandler):
                     challenge_reward = 0
                     if ticket_row["ticket_type"] not in seen:
                         seen.append(ticket_row["ticket_type"])
-                        if len(seen) == len(TYPES):
+                        if len(seen) >= 8:
                             challenge_reward = 100
                             coins += challenge_reward
                     now = int(time.time())
@@ -427,17 +930,18 @@ class Handler(SimpleHTTPRequestHandler):
                     )
                 player = conn.execute("SELECT * FROM players WHERE id=?", (player["id"],)).fetchone()
                 ticket_row = conn.execute("SELECT * FROM tickets WHERE id=?", (ticket_row["id"],)).fetchone()
-                records = records_for(conn, player["id"])
+                records, _ = records_for(conn, player["id"], 1, 10)
             return self.send_json({
                 "win": ticket_row["win"],
                 "player": player_dict(player),
                 "records": records,
                 "challengeReward": challenge_reward if "challenge_reward" in locals() else 0,
             })
+
         return self.send_json({"error": "not_found"}, HTTPStatus.NOT_FOUND)
 
 
 if __name__ == "__main__":
     init_db()
-    print(f"Scratch Game listening on http://{HOST}:{PORT}")
+    print(f"Scratch Game v2.0 listening on http://{HOST}:{PORT}")
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
