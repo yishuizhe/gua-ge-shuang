@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-import ast
 import hashlib
 import json
-import operator
 import os
 import random
 import re
@@ -49,11 +47,10 @@ TYPES = {
     "jinyu": {"name": "金玉满堂", "icon": "🧧", "cost": 20, "kind": "triple"},
     "ten": {"name": "好运十倍", "icon": "⚡", "cost": 30, "kind": "multi"},
     "koi": {"name": "锦鲤驾到", "icon": "🐟", "cost": 50, "kind": "koi"},
-    "twentyfour": {"name": "24点挑战", "icon": "🧠", "cost": 10, "kind": "twentyfour"},
-    "pusher": {"name": "推币机", "icon": "🪙", "cost": 10, "kind": "pusher"},
-    "claw": {"name": "抓娃娃机", "icon": "🕹️", "cost": 20, "kind": "claw"},
+    "blackjack": {"name": "21点", "icon": "🃏", "cost": 20, "kind": "blackjack"},
     "ssq": {"name": "双色球", "icon": "🔴", "cost": 2, "kind": "ssq"},
-    "baccarat": {"name": "百家乐", "icon": "🃏", "cost": 25, "kind": "baccarat"},
+    "baccarat": {"name": "百家乐", "icon": "🎴", "cost": 25, "kind": "baccarat"},
+    "dice": {"name": "猜大小", "icon": "🎲", "cost": 10, "kind": "dice"},
     "slots": {"name": "水果机", "icon": "🍒", "cost": 5, "kind": "slots"},
     "pinball": {"name": "弹珠台", "icon": "🔮", "cost": 8, "kind": "pinball"},
     "wheel": {"name": "幸运转盘", "icon": "🎡", "cost": 10, "kind": "wheel"},
@@ -271,148 +268,57 @@ def roll_payout(ticket_type, streak):
     return 1000000, "传说大奖"
 
 
-# ---------- 24-point: safe expression evaluator ----------
-ALLOWED_OPS = {
-    ast.Add: operator.add,
-    ast.Sub: operator.sub,
-    ast.Mult: operator.mul,
-    ast.Div: operator.truediv,
-    ast.USub: operator.neg,
-}
-
-
-def _eval_ast(node):
-    if isinstance(node, ast.Constant):
-        return node.value
-    if isinstance(node, ast.BinOp):
-        left = _eval_ast(node.left)
-        right = _eval_ast(node.right)
-        op_type = type(node.op)
-        if op_type not in ALLOWED_OPS:
-            raise ValueError("unsupported operator")
-        result = ALLOWED_OPS[op_type](left, right)
-        return result
-    if isinstance(node, ast.UnaryOp):
-        operand = _eval_ast(node.operand)
-        op_type = type(node.op)
-        if op_type not in ALLOWED_OPS:
-            raise ValueError("unsupported operator")
-        return ALLOWED_OPS[op_type](operand)
-    raise ValueError("unsupported expression")
-
-
-def safe_eval(expr):
-    """Safely evaluate an arithmetic expression using AST."""
-    expr = expr.strip()
-    if not expr:
-        raise ValueError("empty expression")
-    # Only allow digits, operators, parentheses, whitespace, decimal point
-    if not re.match(r'^[\d\s+\-*/().]+$', expr):
-        raise ValueError("表达式包含非法字符")
-    tree = ast.parse(expr, mode='eval')
-    return _eval_ast(tree.body)
-
-
-def validate_24_answer(expr, numbers):
-    """Validate that expr uses exactly the given numbers and equals 24."""
-    # Extract numbers from expression
-    expr_nums = [int(n) for n in re.findall(r'\d+', expr)]
-    expected = sorted(numbers)
-    got = sorted(expr_nums)
-    if got != expected:
-        return False, f"必须恰好使用数字 {expected}，你用了 {got}"
-    try:
-        result = safe_eval(expr)
-    except (ValueError, ZeroDivisionError) as e:
-        return False, f"算式错误: {e}"
-    # Allow small floating point tolerance
-    if abs(result - 24) > 0.001:
-        return False, f"算式结果 = {result}，不是 24"
-    return True, "回答正确！"
-
-
 # ---------- ticket generators ----------
 def generate_ticket(ticket_type, streak):
     kind = TYPES[ticket_type]["kind"]
     cost = TYPES[ticket_type]["cost"]
     cells, winning = [], []
 
-    # ---- 24-point: dealer deals 4 cards ----
-    if kind == "twentyfour":
-        # Deal 4 cards with guaranteed solvability
-        solvable_sets = [
-            [1, 2, 3, 4], [1, 3, 5, 6], [2, 3, 4, 6], [3, 3, 8, 8],
-            [1, 5, 5, 5], [2, 2, 5, 10], [2, 3, 3, 8], [1, 3, 4, 6],
-            [2, 4, 6, 8], [3, 4, 5, 6], [4, 4, 7, 7], [2, 5, 7, 8],
-            [1, 4, 5, 6], [2, 3, 5, 8], [3, 5, 7, 8], [1, 6, 7, 8],
-            [2, 4, 5, 7], [3, 4, 7, 8], [4, 5, 6, 7], [2, 6, 7, 8],
-        ]
-        numbers = random.choice(solvable_sets)
-        random.shuffle(numbers)
-        # Card display: A=1, 2-10, J=11, Q=12, K=13
-        card_map = {1: "A", 11: "J", 12: "Q", 13: "K"}
-        cards = [{"value": n, "display": card_map.get(n, str(n)), "suit": random.choice(["♠", "♥", "♣", "♦"])} for n in numbers]
+    # ---- Blackjack (21点) ----
+    if kind == "blackjack":
+        win_base, prize_tier = roll_payout(ticket_type, streak)
+        deck = [1,2,3,4,5,6,7,8,9,10,10,10,10] * 4
+        random.shuffle(deck)
+        player_hand = [deck.pop(), deck.pop()]
+        dealer_hand = [deck.pop(), deck.pop()]
+        def hand_value(h):
+            total = sum(h)
+            # Ace as 11 if it helps
+            if 1 in h and total + 10 <= 21:
+                return total + 10
+            return total
+        player_val = hand_value(player_hand)
+        dealer_val = hand_value(dealer_hand)
+        # auto-stand at 21
+        if player_val == 21:
+            win_amount = win_base * 2
+        elif player_val > 21:
+            win_amount = 0  # bust
+        else:
+            # Dealer hits on 16, stands on 17
+            dealer_final = dealer_hand[:]
+            while hand_value(dealer_final) < 17:
+                dealer_final.append(deck.pop())
+            dealer_final_val = hand_value(dealer_final)
+            if dealer_final_val > 21:
+                win_amount = win_base
+            elif player_val > dealer_final_val:
+                win_amount = win_base
+            elif player_val == dealer_final_val:
+                win_amount = 0  # push
+            else:
+                win_amount = 0
+        card_display = {1:"A",11:"J",12:"Q",13:"K"}
         return {
-            "mode": "twentyfour",
-            "cards": cards,
-            "_numbers": numbers,
-            "resultText": "使用全部4张牌，通过加减乘除凑出24",
-            "prizeTier": "技巧奖",
-            "maxPrize": 50,
-        }, 50
-
-    # ---- coin pusher (enhanced) ----
-    if kind == "pusher":
-        win, prize_tier = roll_payout(ticket_type, streak)
-        # Generate coin positions on the shelf
-        coins = []
-        for i in range(random.randint(15, 30)):
-            coins.append({
-                "x": round(random.uniform(0.05, 0.95), 3),
-                "y": round(random.uniform(0.05, 0.85), 3),
-                "size": random.choice([0.8, 1.0, 1.2]),
-            })
-        return {
-            "mode": "pusher",
-            "coins": coins,
-            "dropZone": round(random.uniform(0.1, 0.9), 2),
-            "resultText": "推板前进，看看有多少爽币落袋",
+            "mode": "blackjack",
+            "playerHand": player_hand,
+            "dealerHand": dealer_hand,
+            "deck": deck,
+            "_win": win_amount,
+            "resultText": f"你的点数: {player_val}，庄家: {dealer_val}",
             "prizeTier": prize_tier,
             "maxPrize": 1000000,
-        }, win
-
-    # ---- claw machine (enhanced) ----
-    if kind == "claw":
-        win, prize_tier = roll_payout(ticket_type, streak)
-        toys = []
-        toy_types = [
-            {"emoji": "🐼", "name": "熊猫", "size": 1.0},
-            {"emoji": "🦁", "name": "狮子", "size": 1.1},
-            {"emoji": "🐰", "name": "兔子", "size": 0.9},
-            {"emoji": "🐻", "name": "小熊", "size": 1.0},
-            {"emoji": "🐸", "name": "青蛙", "size": 0.85},
-            {"emoji": "🐱", "name": "猫咪", "size": 0.9},
-            {"emoji": "🦊", "name": "狐狸", "size": 0.95},
-            {"emoji": "🐨", "name": "考拉", "size": 0.9},
-        ]
-        chosen = random.sample(toy_types, 6)
-        winning_idx = random.randrange(len(chosen)) if win else -1
-        for i, t in enumerate(chosen):
-            toys.append({
-                "emoji": t["emoji"],
-                "name": t["name"],
-                "size": t["size"],
-                "x": round(0.08 + i * 0.14 + random.uniform(-0.02, 0.02), 3),
-                "isWinner": i == winning_idx,
-            })
-        return {
-            "mode": "claw",
-            "toys": toys,
-            "_winningSlot": winning_idx,
-            "resultText": "移动机械爪，抓取心仪的娃娃",
-            "prizeTier": prize_tier,
-            "maxPrize": 1000000,
-        }, win
+        }, win_amount
 
     # ---- existing scratch card types ----
     win, prize_tier = roll_payout(ticket_type, streak)
@@ -539,6 +445,31 @@ def generate_ticket(ticket_type, streak):
             "maxPrize": 1000000,
         }, win
 
+    # ---- new: dice (猜大小) ----
+    elif kind == "dice":
+        dice = [random.randint(1, 6) for _ in range(3)]
+        dice_total = sum(dice)
+        is_big = dice_total >= 11
+        is_triple = dice[0] == dice[1] == dice[2]
+        bet_type = "big" if is_big else "small"
+        if is_triple:
+            bet_type = "triple"
+        win, prize_tier = roll_payout(ticket_type, streak)
+        if not win:
+            # force wrong bet hint
+            bet_type = ""
+        return {
+            "mode": "dice",
+            "dice": dice,
+            "total": dice_total,
+            "_isBig": is_big,
+            "_isTriple": is_triple,
+            "_betType": bet_type,
+            "resultText": f"骰子点数: {dice_total} {'大' if is_big else '小'}",
+            "prizeTier": prize_tier,
+            "maxPrize": 1000000,
+        }, win
+
     # ---- new: slots ----
     elif kind == "slots":
         fruits = ["🍒", "🍋", "🍊", "🍇", "💎", "7️⃣", "⭐"]
@@ -549,7 +480,7 @@ def generate_ticket(ticket_type, streak):
             for _ in range(12):
                 reel.append(random.choices(fruits, weights=weights)[0])
             reels.append(reel)
-        # Determine win from final positions
+        # Determine win from final positions (middle row)
         final = [reel[5] for reel in reels]
         if final[0] == final[1] == final[2]:
             multiplier = 8
@@ -568,43 +499,57 @@ def generate_ticket(ticket_type, streak):
             "maxPrize": 1000000,
         }, actual_win
 
-    # ---- new: pinball ----
+    # ---- new: pinball (with pegs) ----
     elif kind == "pinball":
-        slots_payouts = [0, cost, cost, cost * 2, cost * 2, cost * 3, cost * 5, cost * 10]
+        slot_payouts = [0, cost, cost, cost * 2, cost * 2, cost * 3, cost * 5, cost * 10]
         slot_labels = ["空", "回本", "回本", "小奖", "小奖", "中奖", "大奖", "超级"]
         win, prize_tier = roll_payout(ticket_type, streak)
         target_slot = random.choices(
-            range(len(slots_payouts)),
+            range(len(slot_payouts)),
             weights=[40, 20, 15, 10, 7, 5, 2, 1]
         )[0]
         if win:
-            # force win to a paying slot
-            paying_slots = [i for i, p in enumerate(slots_payouts) if p > 0]
+            paying_slots = [i for i, p in enumerate(slot_payouts) if p > 0]
             target_slot = random.choice(paying_slots)
+        # Generate random peg bounce path
+        pegs = []
+        rows = 8
+        for row in range(rows):
+            peg_row = []
+            cols = 4 + row
+            for col in range(cols):
+                if random.random() > 0.15:
+                    peg_row.append({"x": col, "y": row})
+            pegs.append(peg_row)
         return {
             "mode": "pinball",
-            "slots": [{"label": l, "payout": p} for l, p in zip(slot_labels, slots_payouts)],
+            "slots": [{"label": l, "payout": p} for l, p in zip(slot_labels, slot_payouts)],
             "_targetSlot": target_slot,
+            "_pegs": pegs,
             "resultText": "弹珠落下，看看落入哪个奖池",
             "prizeTier": prize_tier,
             "maxPrize": 1000000,
         }, win
 
-    # ---- new: wheel ----
+    # ---- new: wheel (10 segments) ----
     elif kind == "wheel":
         segments = [
-            {"label": "空", "payout": 0, "color": "#888"},
-            {"label": "回本", "payout": cost, "color": "#f0ad4e"},
-            {"label": "小奖", "payout": cost * 2, "color": "#5bc0de"},
-            {"label": "中奖", "payout": cost * 5, "color": "#d9534f"},
-            {"label": "大奖", "payout": cost * 10, "color": "#ff6384"},
-            {"label": "超级", "payout": cost * 50, "color": "#ffd700"},
+            {"label": "空", "payout": 0, "color": "#7f8c8d"},
+            {"label": "空", "payout": 0, "color": "#95a5a6"},
+            {"label": "回本", "payout": cost, "color": "#f39c12"},
+            {"label": "回本", "payout": cost, "color": "#e67e22"},
+            {"label": "小奖", "payout": cost * 2, "color": "#3498db"},
+            {"label": "小奖", "payout": cost * 2, "color": "#2980b9"},
+            {"label": "中奖", "payout": cost * 5, "color": "#9b59b6"},
+            {"label": "大奖", "payout": cost * 10, "color": "#e74c3c"},
+            {"label": "超级", "payout": cost * 50, "color": "#f1c40f"},
+            {"label": "传说", "payout": cost * 100, "color": "#ff6348"},
         ]
-        weights = [50, 25, 15, 7, 2.5, 0.5]
+        weights = [25, 23, 15, 12, 8, 7, 5, 3, 1.5, 0.5]
         win, prize_tier = roll_payout(ticket_type, streak)
         target_seg = random.choices(range(len(segments)), weights=weights)[0]
         if not win:
-            target_seg = 0  # force lose
+            target_seg = random.choice([0, 1])  # force lose to empty
         return {
             "mode": "wheel",
             "segments": segments,
@@ -718,7 +663,7 @@ class Handler(SimpleHTTPRequestHandler):
         # ---- leaderboard with pagination ----
         if path == "/api/leaderboard":
             page = max(1, int(params.get("page", "1")))
-            limit = min(50, max(5, int(params.get("limit", "20"))))
+            limit = min(50, max(5, int(params.get("limit", "10"))))
             offset = (page - 1) * limit
             with db() as conn:
                 rows = conn.execute(
@@ -873,32 +818,53 @@ class Handler(SimpleHTTPRequestHandler):
                     payload = json.loads(ticket_row["payload"])
                     win = ticket_row["win"]
 
-                    # 24-point answer validation
-                    if payload.get("mode") == "twentyfour":
-                        answer = str(data.get("answer", "")).strip()
-                        valid, msg = validate_24_answer(answer, payload["_numbers"])
-                        if not valid:
-                            win = 0
-                            payload["_validation_msg"] = msg
+                    # blackjack: handle hit/stand
+                    if payload.get("mode") == "blackjack":
+                        action = str(data.get("action", "stand"))
+                        deck = payload["deck"]
+                        player_hand = payload["playerHand"][:]
+                        if action == "hit":
+                            player_hand.append(deck.pop(0))
+                            def hv(h):
+                                t = sum(h)
+                                return t + 10 if 1 in h and t + 10 <= 21 else t
+                            player_val = hv(player_hand)
+                            if player_val > 21:
+                                win = 0  # bust
+                            elif player_val == 21:
+                                win = payload["_win"] * 2
+                            else:
+                                # dealer plays
+                                dealer_hand = payload["dealerHand"][:]
+                                while hv(dealer_hand) < 17:
+                                    dealer_hand.append(deck.pop(0))
+                                dealer_val = hv(dealer_hand)
+                                if dealer_val > 21 or player_val > dealer_val:
+                                    win = payload["_win"]
+                                elif player_val == dealer_val:
+                                    win = 0
+                                else:
+                                    win = 0
+                            payload["playerHand"] = player_hand
+                            payload["dealerHand"] = dealer_hand
 
-                    # claw machine
-                    elif payload.get("mode") == "claw":
-                        try:
-                            slot = int(data.get("slot", -1))
-                        except (TypeError, ValueError):
-                            slot = -1
-                        if slot != payload["_winningSlot"]:
+                    # dice: check bet
+                    elif payload.get("mode") == "dice":
+                        bet = str(data.get("bet", ""))
+                        if payload["_isTriple"]:
+                            correct = (bet == "triple")
+                        else:
+                            correct = (bet == "big" and payload["_isBig"]) or (bet == "small" and not payload["_isBig"])
+                        if not correct:
                             win = 0
 
                     # ssq - already server-determined
                     elif payload.get("mode") == "ssq":
                         win = payload["_win"]
 
-                    # baccarat - server-determined
+                    # baccarat / slots / pinball / wheel - win already set
                     elif payload.get("mode") == "baccarat":
                         win = payload["_win"]
-
-                    # pusher, slots, pinball, wheel - win already set
 
                     played = player["played"] + 1
                     wins = player["wins"] + (1 if win else 0)

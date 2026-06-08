@@ -176,7 +176,7 @@
     .wheel-pointer{position:absolute;top:-10px;left:50%;transform:translateX(-50%);font-size:30px;z-index:2;filter:drop-shadow(0 3px 2px rgba(0,0,0,.4))}
     .wheel-svg{width:300px;height:300px;transition:transform 4s cubic-bezier(.17,.67,.12,.99)}
     /* Admin */
-    .admin-panel{max-width:700px;margin:auto}
+    .admin-panel{max-width:700px;margin:auto;max-height:80vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
     .admin-panel h2{color:white;text-align:center}
     .admin-form{background:#2a2040;border-radius:18px;padding:20px;margin:15px 0}
     .admin-field{margin-bottom:12px;display:flex;align-items:center;gap:10px}
@@ -356,11 +356,10 @@
     {id:'jinyu',name:'金玉满堂',icon:'🧧',cost:20,color:'#ffc45e',banner:'linear-gradient(135deg,#e9790c,#b32617)',rule:'集齐 3 个相同宝物，获得该宝物奖金',kind:'triple',cat:'彩票'},
     {id:'ten',name:'好运十倍',icon:'⚡',cost:30,color:'#d09aff',banner:'linear-gradient(135deg,#7b36cb,#3f187d)',rule:'匹配幸运数字，再刮倍数区，最高 ×10',kind:'multi',cat:'彩票'},
     {id:'koi',name:'锦鲤驾到',icon:'🐟',cost:50,color:'#75e3bd',banner:'linear-gradient(135deg,#008b74,#075b6c)',rule:'找到锦鲤立即中奖；双锦鲤触发超级大奖',kind:'koi',cat:'彩票'},
-    {id:'baccarat',name:'百家乐',icon:'🃏',cost:25,color:'#c9a96e',banner:'linear-gradient(135deg,#1a5c2a,#0d3b18)',rule:'庄家发牌比大小，押中赢方获得奖金',kind:'baccarat',cat:'彩票'},
+    {id:'baccarat',name:'百家乐',icon:'🎴',cost:25,color:'#c9a96e',banner:'linear-gradient(135deg,#1a5c2a,#0d3b18)',rule:'庄家发牌比大小，押中赢方获得奖金',kind:'baccarat',cat:'彩票'},
     {id:'ssq',name:'双色球',icon:'🔴',cost:2,color:'#ff6b6b',banner:'linear-gradient(135deg,#c0392b,#e74c3c)',rule:'系统自动选号，开奖匹配红蓝球',kind:'ssq',cat:'彩票'},
-    {id:'twentyfour',name:'24点挑战',icon:'🧠',cost:10,color:'#ffb6d8',banner:'linear-gradient(135deg,#d63588,#76215b)',rule:'庄家发 4 张牌，用加减乘除凑出 24',kind:'twentyfour',cat:'街机'},
-    {id:'pusher',name:'推币机',icon:'🪙',cost:10,color:'#9ad8ff',banner:'linear-gradient(135deg,#168ec5,#2454a3)',rule:'瞄准投币推动币堆，落下的爽币全部带走',kind:'pusher',cat:'街机'},
-    {id:'claw',name:'抓娃娃机',icon:'🕹️',cost:20,color:'#b8f29a',banner:'linear-gradient(135deg,#45a84d,#176b62)',rule:'移动机械爪瞄准娃娃，成功抓取获得奖品',kind:'claw',cat:'街机'},
+    {id:'blackjack',name:'21点',icon:'🃏',cost:20,color:'#2ecc71',banner:'linear-gradient(135deg,#1a7a3a,#0d4f1e)',rule:'庄家发牌，要牌停牌，接近21点即赢',kind:'blackjack',cat:'街机'},
+    {id:'dice',name:'猜大小',icon:'🎲',cost:10,color:'#e74c3c',banner:'linear-gradient(135deg,#c0392b,#8b0000)',rule:'三颗骰子，猜大(11-17)猜小(4-10)，猜中赢奖',kind:'dice',cat:'街机'},
     {id:'slots',name:'水果机',icon:'🍒',cost:5,color:'#ff9ff3',banner:'linear-gradient(135deg,#5f27cd,#341f97)',rule:'三列转轮旋转，图案匹配即中奖',kind:'slots',cat:'街机'},
     {id:'pinball',name:'弹珠台',icon:'🔮',cost:8,color:'#48dbfb',banner:'linear-gradient(135deg,#0abde3,#0984e3)',rule:'发射弹珠落入奖池，不同奖池不同奖金',kind:'pinball',cat:'街机'},
     {id:'wheel',name:'幸运转盘',icon:'🎡',cost:10,color:'#feca57',banner:'linear-gradient(135deg,#ff9f43,#ee5a24)',rule:'旋转大转盘，指针停在哪个区域就得哪个奖',kind:'wheel',cat:'街机'},
@@ -373,12 +372,11 @@
     koi:['刮开好运池。找到一条锦鲤获得奖金；最高奖会出现双锦鲤并翻倍。','票价 50；回本 50；小奖 100；中奖 250；大奖 500；最高奖可达 100 万！'],
     baccarat:['系统模拟庄家发牌，闲家与庄家两张牌比大小，个位数更大者赢。','票价 25；回本 25；小奖 50；中奖 125；大奖 250；最高奖可达 100 万！'],
     ssq:['系统自动选 6 个红球 + 1 个蓝球。开奖后根据匹配球数获得奖金。','票价 2；回本 2；小奖 4；中奖 10；大奖 20；最高奖可达 100 万！'],
-    twentyfour:['庄家发 4 张扑克牌。使用加减乘除和括号，用全部 4 张牌凑出 24。自己输入算式。','票价 10；答错 0；答对固定奖励 50 爽币。'],
-    pusher:['瞄准投币位置，推板把币堆向前推动。落币数量由服务器奖池结算。','票价 10；回本 10；小奖 20；中奖 50；大奖 100；最高奖可达 100 万！'],
-    claw:['左右移动机械爪瞄准娃娃。成功抓取即可获得本局奖品。','票价 20；回本 20；小奖 40；中奖 100；大奖 200；最高奖可达 100 万！'],
+    blackjack:['庄家发 2 张牌，你看牌后选择"要牌"或"停牌"。接近 21 点但不能超过，超过则爆牌。','票价 20；回本 20；小奖 40；中奖 100；大奖 200；最高奖可达 100 万！'],
+    dice:['三颗骰子，猜"大"(11-17)或"小"(4-10)。猜中即赢，猜错不中。出现豹子(三个相同)则大小通杀。','票价 10；回本 10；小奖 20；中奖 50；大奖 100；最高奖可达 100 万！'],
     slots:['三列转轮旋转后停止。三个相同图案中大奖，两个相同中小奖。','票价 5；回本 5；小奖 10；中奖 25；大奖 50；最高奖可达 100 万！'],
     pinball:['弹珠从顶部下落经过随机碰撞落入底部奖池。不同奖池奖金不同。','票价 8；回本 8；小奖 16；中奖 40；大奖 80；最高奖可达 100 万！'],
-    wheel:['转盘旋转，指针最终指向某个区域即为该区域奖金。','票价 10；回本 10；小奖 20；中奖 50；大奖 100；最高奖可达 100 万！'],
+    wheel:['10格转盘旋转，指针最终指向某个区域即为该区域奖金。','票价 10；回本 10；小奖 20；中奖 50；大奖 100；最高奖可达 100 万！'],
   };
   const TREASURES = [['金元宝','💰'],['翡翠','💎'],['如意','🪄'],['红包','🧧'],['铜钱','🪙']];
   const TOKEN_KEY = 'gua-shuang-player-token';
@@ -500,7 +498,7 @@
 
   function renderRanks() {
     const medals = ['🥇', '🥈', '🥉'];
-    const html = leaderboard.length ? leaderboard.map((p, i) => `<div class="rank-row"><div class="rank-no ${i < 3 ? 'top' : ''}">${medals[i] || ((leaderboardPage - 1) * 20 + i + 1)}</div><div class="rank-name">${escapeHtml(p.nickname)}<small>${p.playerId} · ${p.played} 张</small></div><div class="rank-score">Lv.${p.level}</div></div>`).join('') : '<div class="record-empty">还没有排行数据</div>';
+    const html = leaderboard.length ? leaderboard.map((p, i) => `<div class="rank-row"><div class="rank-no ${i < 3 ? 'top' : ''}">${medals[i] || ((leaderboardPage - 1) * 10 + i + 1)}</div><div class="rank-name">${escapeHtml(p.nickname)}<small>${p.playerId} · ${p.played} 张</small></div><div class="rank-score">Lv.${p.level}</div></div>`).join('') : '<div class="record-empty">还没有排行数据</div>';
     $('#rankList').innerHTML = html;
     $('#rankModalList').innerHTML = html;
     let ph = '';
@@ -519,7 +517,7 @@
 
   async function loadLeaderboard(page = 1) {
     try {
-      const data = await api(`/api/leaderboard?page=${page}&limit=20`);
+      const data = await api(`/api/leaderboard?page=${page}&limit=10`);
       leaderboard = data.leaderboard || [];
       leaderboardPage = data.page || 1;
       leaderboardPages = data.pages || 1;
@@ -625,9 +623,8 @@
   function renderArcade() {
     $('#quickScratch').style.display = 'none';
     $('#newTicket').style.display = 'none';
-    if (ticket.mode === 'twentyfour') render24();
-    else if (ticket.mode === 'pusher') renderPusher();
-    else if (ticket.mode === 'claw') renderClaw();
+    if (ticket.mode === 'blackjack') renderBlackjack();
+    else if (ticket.mode === 'dice') renderDice();
     else if (ticket.mode === 'ssq') renderSSQ();
     else if (ticket.mode === 'baccarat') renderBaccarat();
     else if (ticket.mode === 'slots') renderSlots();
@@ -635,247 +632,83 @@
     else if (ticket.mode === 'wheel') renderWheel();
   }
 
-  // ---- 24-point calculator ----
-  function render24() {
-    let expr = '';
-    const cardNums = ticket.cards.map(c => c.value);
-    $('#stage').innerHTML = `<div class="arcade"><h2>🧠 24点挑战</h2><div class="arcade-sub">庄家发了 4 张牌，用加减乘除凑出 24</div><div class="cards24">${ticket.cards.map(c => `<div class="card24"><div class="card-val">${c.display}</div><div class="card-suit">${c.suit}</div></div>`).join('')}</div>
-      <div class="calc-display" id="calcDisplay"></div>
-      <div class="calc-buttons" id="calcButtons"></div>
-      <button class="calc-btn submit" id="calcSubmit" disabled>提交答案</button>
-      <button class="calc-btn fn" id="calcClear" style="margin-top:8px">清空</button></div>`;
-    const display = $('#calcDisplay');
-    const btns = $('#calcButtons');
-    const numbers = [...new Set(cardNums)];
-    const ops = ['+', '-', '×', '÷', '(', ')'];
-    const numsHtml = numbers.map(n => `<button class="calc-btn num" data-val="${n}">${n}</button>`).join('');
-    const opsHtml = ops.map(o => `<button class="calc-btn op" data-val="${o}">${o}</button>`).join('');
-    btns.innerHTML = numsHtml + opsHtml;
-    btns.querySelectorAll('.calc-btn').forEach(b => b.addEventListener('click', () => {
-      const v = b.dataset.val;
-      if (v === '×') expr += '*';
-      else if (v === '÷') expr += '/';
-      else expr += v;
-      display.textContent = expr || ' ';
-      $('#calcSubmit').disabled = expr.trim().length < 3;
-    }));
-    $('#calcClear').addEventListener('click', () => { expr = ''; display.textContent = ' '; $('#calcSubmit').disabled = true; });
-    $('#calcSubmit').addEventListener('click', async () => {
-      $('#calcSubmit').disabled = true;
+  // ---- Blackjack (21点) ----
+  function renderBlackjack() {
+    const cardDisplay = {1:'A',11:'J',12:'Q',13:'K'};
+    const disp = n => cardDisplay[n] || String(n);
+    const suits = ['♠','♥','♣','♦'];
+    const handHtml = (cards, label, val) => `<div class="baccarat-hand"><h4>${label}</h4>${cards.map(n => `<div class="card">${disp(n)}<span style="font-size:10px;display:block">${suits[Math.floor(Math.random()*4)]}</span></div>`).join('')}<div style="color:#cbbede;font-size:13px;margin-top:5px">点数: ${val}</div></div>`;
+    const hv = h => { let t = h.reduce((a,b)=>a+b,0); return h.includes(1) && t+10 <= 21 ? t+10 : t; };
+    const playerVal = hv(ticket.playerHand);
+    $('#stage').innerHTML = `<div class="arcade"><h2>🃏 21点</h2><div class="arcade-sub">庄家发牌，接近21点但不能超过</div>
+      <div class="baccarat-cards">
+        ${handHtml(ticket.playerHand, '你的牌', playerVal)}
+        ${handHtml(ticket.dealerHand.slice(0,1), '庄家', '?')}
+      </div>
+      <div style="margin-top:15px">
+        <button class="pusher-btn" id="bjHit" style="background:#e74c3c;margin-right:8px">要牌 (Hit)</button>
+        <button class="pusher-btn" id="bjStand" style="background:#2ecc71">停牌 (Stand)</button>
+      </div>
+      <div id="bjResult" style="margin-top:12px;font-weight:900"></div></div>`;
+    $('#bjHit').addEventListener('click', async () => {
+      $('#bjHit').disabled = true; $('#bjStand').disabled = true;
       try {
-        await finishTicket({ answer: expr });
+        await finishTicket({ action: 'hit' });
+        // Show final state
+        const pv = hv(ticket.playerHand);
+        const dv = hv(ticket.dealerHand);
+        $('#bjResult').innerHTML = `<div class="baccarat-cards">
+          ${handHtml(ticket.playerHand, '你的牌', pv)}
+          ${handHtml(ticket.dealerHand, '庄家', dv)}
+        </div>`;
         setTimeout(() => { if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 2000);
-      } catch (e) { $('#calcSubmit').disabled = false; }
+      } catch (e) { $('#bjHit').disabled = false; $('#bjStand').disabled = false; }
+    });
+    $('#bjStand').addEventListener('click', async () => {
+      $('#bjHit').disabled = true; $('#bjStand').disabled = true;
+      try {
+        await finishTicket({ action: 'stand' });
+        const dv = hv(ticket.dealerHand);
+        $('#bjResult').innerHTML = `<div class="baccarat-cards">
+          ${handHtml(ticket.playerHand, '你的牌', playerVal)}
+          ${handHtml(ticket.dealerHand, '庄家', dv)}
+        </div>`;
+        setTimeout(() => { if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 2000);
+      } catch (e) { $('#bjHit').disabled = false; $('#bjStand').disabled = false; }
     });
   }
 
-  // ---- Enhanced Coin Pusher (Canvas) ----
-  function renderPusher() {
-    let dropX = 0.5, animating = false;
-    $('#stage').innerHTML = `<div class="arcade"><h2>🪙 好运推币机</h2><div class="arcade-sub">瞄准投币位置，推板推动币堆</div>
-      <canvas class="pusher-canvas" id="pusherCv" width="540" height="340"></canvas>
-      <div class="pusher-controls">
-        <span style="color:#cbbede;font-size:12px">◀ 瞄准 ▶</span>
-        <input type="range" class="pusher-slider" id="pusherSlider" min="5" max="95" value="50">
-        <button class="pusher-btn" id="pusherDrop">🪙 投币</button>
-      </div></div>`;
-    const cv = $('#pusherCv'), ctx = cv.getContext('2d');
-    let coins = ticket.coins || [];
-    let pusherX = 0, pusherPhase = 'idle';
-
-    function draw() {
-      const W = cv.width, H = cv.height;
-      ctx.clearRect(0, 0, W, H);
-      // background
-      const bg = ctx.createLinearGradient(0, 0, 0, H);
-      bg.addColorStop(0, '#1a1a2e'); bg.addColorStop(1, '#16213e');
-      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-      // shelf
-      ctx.fillStyle = '#8B7355';
-      ctx.fillRect(0, H * 0.75, W, H * 0.25);
-      ctx.fillStyle = '#A0896C';
-      ctx.fillRect(0, H * 0.75, W, 3);
-      // coins
-      coins.forEach(c => {
-        const cx = c.x * W, cy = c.y * H * 0.75;
-        ctx.beginPath();
-        ctx.arc(cx, cy, 10 * (c.size || 1), 0, Math.PI * 2);
-        ctx.fillStyle = '#FFD700';
-        ctx.fill();
-        ctx.strokeStyle = '#DAA520';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-        ctx.fillStyle = '#B8860B';
-        ctx.font = 'bold 8px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('$', cx, cy + 3);
-      });
-      // pusher
-      const px = pusherX * W;
-      ctx.fillStyle = '#C0C0C0';
-      const grad = ctx.createLinearGradient(0, H * 0.6, 0, H * 0.75);
-      grad.addColorStop(0, '#E8E8E8');
-      grad.addColorStop(1, '#A0A0A0');
-      ctx.fillStyle = grad;
-      ctx.fillRect(px - 40, H * 0.62, 80, H * 0.13);
-      ctx.strokeStyle = '#888';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(px - 40, H * 0.62, 80, H * 0.13);
-      // drop indicator
-      ctx.fillStyle = '#ff4444';
-      ctx.beginPath();
-      ctx.arc(dropX * W, 15, 6, 0, Math.PI * 2);
-      ctx.fill();
-      // edge (where coins fall)
-      ctx.fillStyle = '#333';
-      ctx.fillRect(0, H * 0.73, W, 2);
+  // ---- Dice (猜大小) ----
+  function renderDice() {
+    $('#stage').innerHTML = `<div class="arcade"><h2>🎲 猜大小</h2><div class="arcade-sub">三颗骰子，猜大(11-17)还是小(4-10)</div>
+      <div style="display:flex;gap:30px;justify-content:center;margin:30px 0" id="diceArea">
+        <div style="font-size:70px">🎲</div><div style="font-size:70px">🎲</div><div style="font-size:70px">🎲</div>
+      </div>
+      <div style="margin-top:15px">
+        <button class="pusher-btn" id="diceBig" style="background:#e74c3c;margin-right:8px;font-size:28px;padding:15px 40px">大<br><small style="font-size:11px">11-17</small></button>
+        <button class="pusher-btn" id="diceSmall" style="background:#3498db;font-size:28px;padding:15px 40px">小<br><small style="font-size:11px">4-10</small></button>
+      </div>
+      <div id="diceResult" style="margin-top:15px;font-weight:900;font-size:16px"></div></div>`;
+    const diceMap = {1:'⚀',2:'⚁',3:'⚂',4:'⚃',5:'⚄',6:'⚅'};
+    function showDice(nums) {
+      const area = $('#diceArea');
+      area.innerHTML = nums.map(n => `<div style="font-size:70px">${diceMap[n]}</div>`).join('');
     }
-
-    draw();
-
-    $('#pusherSlider').addEventListener('input', e => { dropX = e.target.value / 100; draw(); });
-    $('#pusherDrop').addEventListener('click', async () => {
-      if (animating) return;
-      animating = true;
-      $('#pusherDrop').disabled = true;
-      const targetX = dropX;
-      // Animate pusher forward
-      const startTime = performance.now();
-      function anim(now) {
-        const elapsed = (now - startTime) / 1000;
-        if (elapsed < 0.6) {
-          pusherX = targetX;
-          // push coins near the edge
-          coins.forEach(c => {
-            if (Math.abs(c.x - targetX) < 0.2 && c.y > 0.5) c.y += 0.02;
-          });
-          draw();
-          requestAnimationFrame(anim);
-        } else if (elapsed < 1.0) {
-          pusherX = 0;
-          // coins fall off edge
-          coins = coins.filter(c => c.y < 1.0);
-          draw();
-          requestAnimationFrame(anim);
-        } else {
-          pusherX = 0;
-          draw();
-          finishPusher();
-        }
-      }
-      requestAnimationFrame(anim);
-    });
-
-    async function finishPusher() {
-      try { await finishTicket(); } catch (e) {}
-      setTimeout(() => { animating = false; if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 1500);
+    async function bet(choice) {
+      $('#diceBig').disabled = true; $('#diceSmall').disabled = true;
+      showDice(ticket.dice);
+      try {
+        await finishTicket({ bet: choice });
+        const resultDiv = $('#diceResult');
+        const total = ticket.dice.reduce((a,b)=>a+b,0);
+        const isTriple = ticket.dice[0] === ticket.dice[1] && ticket.dice[1] === ticket.dice[2];
+        if (isTriple) resultDiv.textContent = `🎲 ${total}点 豹子！通杀`;
+        else resultDiv.textContent = `🎲 ${total}点 (${total >= 11 ? '大' : '小'})`;
+        setTimeout(() => { if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 2000);
+      } catch (e) { $('#diceBig').disabled = false; $('#diceSmall').disabled = false; }
     }
-  }
-
-  // ---- Enhanced Claw Machine (Canvas) ----
-  function renderClaw() {
-    let clawX = 0.5, animating = false, selectedToy = -1;
-    const toys = ticket.toys || [];
-    $('#stage').innerHTML = `<div class="arcade"><h2>🕹️ 好运抓娃娃</h2><div class="arcade-sub">移动机械爪，抓取心仪的娃娃</div>
-      <canvas class="claw-canvas" id="clawCv" width="540" height="340"></canvas>
-      <div class="claw-controls">
-        <span style="color:#cbbede;font-size:12px">◀ 移动 ▶</span>
-        <input type="range" class="claw-slider" id="clawSlider" min="5" max="95" value="50">
-        <button class="claw-btn" id="clawGrab">🦾 抓取</button>
-      </div></div>`;
-    const cv = $('#clawCv'), ctx = cv.getContext('2d');
-    let clawY = 0, clawOpen = true, clawPhase = 'idle';
-
-    function draw() {
-      const W = cv.width, H = cv.height;
-      ctx.clearRect(0, 0, W, H);
-      const bg = ctx.createLinearGradient(0, 0, 0, H);
-      bg.addColorStop(0, '#1a1a2e'); bg.addColorStop(1, '#0f3460');
-      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-      // floor
-      ctx.fillStyle = '#2d1f3d';
-      ctx.fillRect(0, H * 0.8, W, H * 0.2);
-      // toys
-      toys.forEach((t, i) => {
-        const tx = t.x * W, ty = H * 0.8 - 35 * t.size;
-        ctx.font = `${40 * t.size}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.fillText(t.emoji, tx, ty);
-        ctx.font = '9px sans-serif';
-        ctx.fillStyle = '#cbbede';
-        ctx.fillText(t.name, tx, ty + 20);
-        ctx.fillStyle = 'white';
-        if (i === selectedToy) {
-          ctx.strokeStyle = '#ffd700';
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.arc(tx, ty - 15, 30, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-      });
-      // claw rail
-      ctx.fillStyle = '#555';
-      ctx.fillRect(0, 10, W, 4);
-      // claw
-      const cx = clawX * W;
-      ctx.fillStyle = '#333';
-      ctx.fillRect(cx - 2, 12, 4, 80 + clawY);
-      // claw grip
-      const gripY = 92 + clawY;
-      ctx.strokeStyle = '#777';
-      ctx.lineWidth = 3;
-      if (clawOpen) {
-        ctx.beginPath(); ctx.moveTo(cx, gripY); ctx.lineTo(cx - 18, gripY + 25); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(cx, gripY); ctx.lineTo(cx + 18, gripY + 25); ctx.stroke();
-      } else {
-        ctx.beginPath(); ctx.moveTo(cx, gripY); ctx.lineTo(cx - 10, gripY + 25); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(cx, gripY); ctx.lineTo(cx + 10, gripY + 25); ctx.stroke();
-      }
-      // crossbar
-      ctx.fillStyle = '#555';
-      ctx.fillRect(cx - 22, gripY + 22, 44, 4);
-    }
-
-    draw();
-
-    $('#clawSlider').addEventListener('input', e => { clawX = e.target.value / 100; draw(); });
-    $('#clawGrab').addEventListener('click', async () => {
-      if (animating) return;
-      animating = true;
-      $('#clawGrab').disabled = true;
-      // Find nearest toy
-      let minDist = Infinity;
-      toys.forEach((t, i) => { const dist = Math.abs(t.x - clawX); if (dist < minDist) { minDist = dist; selectedToy = i; } });
-      draw();
-      const startTime = performance.now();
-      function anim(now) {
-        const elapsed = (now - startTime) / 1000;
-        if (elapsed < 0.5) {
-          clawY = elapsed * 300; // descend
-          clawOpen = true;
-        } else if (elapsed < 0.9) {
-          clawY = 150;
-          clawOpen = false; // close
-        } else if (elapsed < 1.4) {
-          clawY = 150 - (elapsed - 0.9) * 300; // ascend
-          clawOpen = false;
-        } else {
-          clawY = 0;
-          clawOpen = true;
-          draw();
-          finishClaw();
-          return;
-        }
-        draw();
-        requestAnimationFrame(anim);
-      }
-      requestAnimationFrame(anim);
-    });
-
-    async function finishClaw() {
-      try { await finishTicket({ slot: selectedToy }); } catch (e) {}
-      setTimeout(() => { animating = false; if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 1500);
-    }
+    $('#diceBig').addEventListener('click', () => bet('big'));
+    $('#diceSmall').addEventListener('click', () => bet('small'));
   }
 
   // ---- SSQ (双色球) ----
@@ -917,48 +750,102 @@
 
   // ---- Slots (水果机) ----
   function renderSlots() {
+    const reels = ticket.reels;
+    const n = reels[0].length; // items per reel
+    // Each reel: show 5 copies for smooth infinite-spin feel, highlight middle copy
+    const makeReel = (items) => {
+      const quint = [...items, ...items, ...items, ...items, ...items];
+      return quint.map((s, j) => {
+        const isResult = j >= n * 2 + 4 && j <= n * 2 + 6;
+        return `<div class="slots-item" style="${isResult ? 'background:rgba(255,255,255,0.2);border-radius:8px' : ''}">${s}</div>`;
+      }).join('');
+    };
     $('#stage').innerHTML = `<div class="arcade"><h2>🍒 水果机</h2><div class="arcade-sub">三列转轮，匹配中奖</div>
-      <div class="slots-reel">${[0, 1, 2].map(i => `<div class="slots-col" id="slotCol${i}"><div class="reel-inner" id="reelInner${i}">${ticket.reels[i].map(s => `<div class="slots-item">${s}</div>`).join('')}</div></div>`).join('')}</div>
+      <div class="slots-reel">${[0, 1, 2].map(i => `<div class="slots-col" id="slotCol${i}"><div class="reel-inner" id="reelInner${i}">${makeReel(reels[i])}</div></div>`).join('')}</div>
       <button class="pusher-btn" id="slotsSpin">🎰 旋转</button>
       <div id="slotsResult" style="margin-top:12px;font-weight:900;font-size:16px"></div></div>`;
     $('#slotsSpin').addEventListener('click', async () => {
       $('#slotsSpin').disabled = true;
-      // Animate each reel
+      // Target: show the middle copy's result row (items at index n*2+5) centered in the visible area.
+      // Visible height = 280px / 56px = 5 items. Center = 3rd visible = offset 2 from top.
+      // Target offset = (n*2 + 5 - 2) * 56 = (n*2 + 3) * 56
+      const targetOffset = (n * 2 + 3) * 56;
       [0, 1, 2].forEach(i => {
         const inner = $(`#reelInner${i}`);
-        const extraSpins = i * 2;
-        inner.style.transform = `translateY(-${(ticket.reels[i].length * 5 + extraSpins) * 56}px)`;
+        // Spin several full cycles first, then land
+        const extraSpin = (5 + i * 2) * n * 56;
+        inner.style.transition = `transform ${2 + i * 0.3}s cubic-bezier(.17,.67,.12,.99)`;
+        inner.style.transform = `translateY(-${extraSpin + targetOffset}px)`;
       });
       setTimeout(async () => {
+        const final = reels.map(r => r[5]).join(' ');
+        let msg = `结果: ${final}`;
+        if (new Set(reels.map(r => r[5])).size === 1) msg += ' 🎉 三连中！';
+        else if (reels[0][5] === reels[1][5] || reels[1][5] === reels[2][5]) msg += ' ✨ 两连中！';
+        $('#slotsResult').textContent = msg;
         try {
           await finishTicket();
           setTimeout(() => { if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 1500);
         } catch (e) {}
-      }, 2600);
+      }, 2800);
     });
   }
 
   // ---- Pinball ----
   function renderPinball() {
-    $('#stage').innerHTML = `<div class="arcade"><h2>🔮 弹珠台</h2><div class="arcade-sub">弹珠随机落入奖池</div>
-      <div class="pinball-board" id="pinballBoard">
-        <div class="pinball-ball" id="pinballBall" style="left:48%;top:5%"></div>
-        <div style="position:absolute;bottom:0;left:0;right:0;display:flex">${ticket.slots.map((s, i) => `<div style="flex:1;text-align:center;padding:8px 2px;border-left:1px solid #5a4d7a;font-size:10px;color:#cbbede">${s.label}<br><b style="color:#ffd65a;font-size:12px">${s.payout ? formatPrize(s.payout) : '✗'}</b></div>`).join('')}</div>
+    const slots = ticket.slots;
+    const slotW = 100 / slots.length;
+    $('#stage').innerHTML = `<div class="arcade"><h2>🔮 弹珠台</h2><div class="arcade-sub">弹珠经过随机碰撞落入奖池</div>
+      <div class="pinball-board" id="pinballBoard" style="position:relative;width:100%;height:340px;background:linear-gradient(#1a2240,#2d1b3d);border-radius:20px;overflow:hidden;margin:10px 0">
+        <div id="pegLayer" style="position:absolute;inset:0"></div>
+        <div class="pinball-ball" id="pinballBall" style="position:absolute;width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ff6b6b,#c0392b);left:50%;top:3%;z-index:2"></div>
+        <div style="position:absolute;bottom:0;left:0;right:0;display:flex;z-index:1">${slots.map((s, i) => `<div style="flex:1;text-align:center;padding:8px 2px;border-left:1px solid #5a4d7a;font-size:10px;color:#cbbede;background:rgba(0,0,0,0.3)">${s.label}<br><b style="color:#ffd65a;font-size:12px">${s.payout ? formatPrize(s.payout) : '✗'}</b></div>`).join('')}</div>
       </div>
       <button class="pusher-btn" id="pinballLaunch" style="margin-top:12px">🔮 发射弹珠</button></div>`;
+    // Draw pegs
+    const pegLayer = $('#pegLayer');
+    const W = pegLayer.offsetWidth || 400, H = 340;
+    let pegsHtml = '';
+    for (let row = 0; row < 9; row++) {
+      const cols = 4 + row;
+      for (let col = 0; col < cols; col++) {
+        if (Math.random() > 0.12) {
+          const x = (col + 1) / (cols + 1) * W;
+          const y = 40 + row * 30 + Math.random() * 5;
+          pegsHtml += `<div style="position:absolute;width:8px;height:8px;border-radius:50%;background:#7b6f9e;left:${x}px;top:${y}px;transform:translate(-50%,-50%)"></div>`;
+        }
+      }
+    }
+    pegLayer.innerHTML = pegsHtml;
+
     $('#pinballLaunch').addEventListener('click', async () => {
       $('#pinballLaunch').disabled = true;
       const ball = $('#pinballBall');
-      const targetLeft = 10 + (ticket._targetSlot || 0) * 12 + Math.random() * 8;
-      ball.style.transition = 'all 1.5s cubic-bezier(.32,.72,.45,.98)';
-      ball.style.left = targetLeft + '%';
-      ball.style.top = '85%';
+      const nSlots = slots.length;
+      const targetIdx = ticket._targetSlot || 0;
+      // Random path: multiple bounces before landing
+      const steps = 6 + Math.floor(Math.random() * 5);
+      let delay = 0;
+      for (let step = 0; step < steps; step++) {
+        const isLast = step === steps - 1;
+        const stepLeft = isLast
+          ? (targetIdx + 0.5) * slotW + (Math.random() - 0.5) * slotW * 0.6
+          : 10 + Math.random() * 80;
+        const stepTop = isLast ? 88 : 5 + (step + 1) * (83 / steps);
+        const dur = 0.15 + Math.random() * 0.2;
+        setTimeout(() => {
+          ball.style.transition = `all ${dur}s ease-in`;
+          ball.style.left = stepLeft + '%';
+          ball.style.top = stepTop + '%';
+        }, delay * 1000);
+        delay += dur;
+      }
       setTimeout(async () => {
         try {
           await finishTicket();
           setTimeout(() => { if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 1500);
         } catch (e) {}
-      }, 1600);
+      }, (delay + 0.3) * 1000);
     });
   }
 
@@ -975,8 +862,9 @@
       const large = segAngle > 180 ? 1 : 0;
       paths += `<path d="M150,150 L${x1},${y1} A140,140 0 ${large},1 ${x2},${y2} Z" fill="${s.color}"/>`;
       const mid = (start + segAngle / 2) * Math.PI / 180;
-      const tx = 150 + 100 * Math.cos(mid), ty = 150 + 100 * Math.sin(mid);
-      paths += `<text x="${tx}" y="${ty}" text-anchor="middle" fill="white" font-size="11" font-weight="900" transform="rotate(${start + segAngle / 2},${tx},${ty})">${s.label}<tspan x="${tx}" dy="14" font-size="9">${s.payout ? formatPrize(s.payout) : '✗'}</tspan></text>`;
+      const tx = 150 + 95 * Math.cos(mid), ty = 150 + 95 * Math.sin(mid);
+      const fs = segs.length > 8 ? 10 : 11;
+      paths += `<text x="${tx}" y="${ty}" text-anchor="middle" fill="white" font-size="${fs}" font-weight="900" transform="rotate(${start + segAngle / 2},${tx},${ty})">${s.label}<tspan x="${tx}" dy="${fs+2}" font-size="${fs-2}">${s.payout ? formatPrize(s.payout) : '✗'}</tspan></text>`;
     });
     $('#stage').innerHTML = `<div class="arcade"><h2>🎡 幸运转盘</h2><div class="arcade-sub">旋转转盘，指针停在哪里得哪个奖</div>
       <div class="wheel-container"><div class="wheel-pointer">▼</div><svg class="wheel-svg" id="wheelSvg" viewBox="0 0 300 300">${paths}</svg></div>
