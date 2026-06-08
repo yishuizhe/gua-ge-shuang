@@ -1417,6 +1417,7 @@
   let recordsTotal = 0;
   async function init() {
     sizeFx(); renderShop(); renderChrome();
+    loadLeaderboard(1);
     if (authToken) {
       try {
         const data = await api('/api/me');
@@ -1424,7 +1425,6 @@
         recordsPages = data.records_pages || 1;
         recordsTotal = data.records_total || 0;
         applyServer(data);
-        await loadLeaderboard(1);
         showPreview();
         return;
       } catch (e) { authToken = ''; localStorage.removeItem(TOKEN_KEY); }
