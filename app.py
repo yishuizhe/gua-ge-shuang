@@ -978,7 +978,10 @@ class Handler(SimpleHTTPRequestHandler):
                             correct = (bet == "triple")
                         else:
                             correct = (bet == "big" and payload["_isBig"]) or (bet == "small" and not payload["_isBig"])
-                        if not correct:
+                        cost = TYPES[ticket_row["ticket_type"]]["cost"]
+                        if correct:
+                            win = cost * 2  # 猜中 = 2倍票价
+                        else:
                             win = 0
 
                     # ssq - already server-determined
