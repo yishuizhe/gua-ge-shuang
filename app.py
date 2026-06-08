@@ -619,6 +619,10 @@ class Handler(SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
         print(f"{self.address_string()} - {fmt % args}")
 
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        super().end_headers()
+
     def send_json(self, data, status=HTTPStatus.OK):
         body = json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         self.send_response(status)
