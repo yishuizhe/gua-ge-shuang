@@ -242,11 +242,12 @@
     .profile-id{font:11px ui-monospace,monospace;color:#9b7662;background:#f2e4c8;border-radius:10px;padding:6px 8px;margin:10px 0}
     .leader-modal .identity-card{text-align:left}.leader-modal h2{text-align:center}.leader-modal .rank-list{max-height:60vh;overflow:auto;padding:0}.leader-modal .close-rank{margin-top:14px}
     @keyframes fade{from{opacity:0}}@keyframes winIn{from{transform:scale(.3) rotate(-8deg);opacity:0}}
-    @media(max-width:1100px){.layout{grid-template-columns:210px minmax(430px,700px)}.right-panel{display:none}}
+    @media(max-width:1100px){.layout{grid-template-columns:200px minmax(380px,1fr) 220px}.right-panel{font-size:88%}}
     @media(max-width:780px){
       .app{padding:9px 10px 22px}.topbar{min-height:62px;padding-bottom:9px}.brand{min-width:0;flex:1}.brand-seal{width:44px;height:44px;border-radius:14px;font-size:23px}
       .brand h1{font-size:22px}.brand small{display:none}.ticker{display:none}.pill{height:40px;padding:0 10px}.pill b{font-size:16px}.level-pill{display:none}
       .layout{display:block}.left-panel{margin-bottom:10px}.left-panel .panel-title,.mission{display:none}.shop{display:flex;overflow-x:auto;padding:8px;gap:6px;scrollbar-width:none}
+      .right-panel{display:block!important;margin-top:16px}
       .ticket-choice{min-width:117px;display:flex;flex-direction:column;text-align:center;padding:8px 6px;margin:0;gap:4px}.ticket-choice.active:after{right:auto;bottom:-8px;width:28px;height:4px;border-radius:4px 4px 0 0}
       .choice-icon{width:38px;height:38px;font-size:20px}.choice-desc{display:none}.choice-cost{padding:2px 6px}.game-shell{min-height:0}
       .game-head{padding:14px 13px 8px}.ticket-stage{padding:3px 10px 12px}.scratch-zone{padding:15px 13px 17px}.ticket-banner{padding:14px 18px;min-height:103px}
@@ -326,7 +327,7 @@
         <div class="panel-title">中奖记录 <small id="recordsInfo">最近 10 条</small></div>
         <div class="record-list" id="records"></div>
         <div class="page-controls" id="recordsPages"></div>
-        <div class="panel-title">全服排行 <small><button id="rankSortBtn" style="border:0;background:#f0dfc7;color:#7a4e35;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:10px;font-weight:700">等级榜</button></small></div>
+        <div class="panel-title">全服排行 <small><button id="rankSortLevel" style="border:0;background:#d71936;color:#fff;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:10px;font-weight:700;margin-right:4px">等级</button><button id="rankSortCoins" style="border:0;background:#f0dfc7;color:#7a4e35;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:10px;font-weight:700">金币</button></small></div>
         <div class="rank-list" id="rankList"></div>
         <div class="page-controls" id="rankPages"></div>
       </aside>
@@ -527,7 +528,6 @@
       leaderboard = data.leaderboard || [];
       leaderboardPage = data.page || 1;
       leaderboardPages = data.pages || 1;
-      $('#rankSortBtn').textContent = rankSort === 'coins' ? '金币榜' : '等级榜';
       renderRanks();
     } catch (e) {}
   }
@@ -1363,7 +1363,8 @@
   $('#closeWin').addEventListener('click', () => $('#bigWin').classList.remove('show'));
   $('#bigWin').addEventListener('click', e => { if (e.target.id === 'bigWin') e.currentTarget.classList.remove('show'); });
   $('#rankBtn').addEventListener('click', async () => { await loadLeaderboard(1); $('#leaderModal').classList.add('show'); });
-  $('#rankSortBtn').addEventListener('click', async () => { rankSort = rankSort === 'coins' ? 'level' : 'coins'; await loadLeaderboard(1); });
+  $('#rankSortLevel').addEventListener('click', async () => { rankSort = 'level'; $('#rankSortLevel').css({background:'#d71936',color:'#fff'}); $('#rankSortCoins').css({background:'#f0dfc7',color:'#7a4e35'}); await loadLeaderboard(1); });
+  $('#rankSortCoins').addEventListener('click', async () => { rankSort = 'coins'; $('#rankSortCoins').css({background:'#d71936',color:'#fff'}); $('#rankSortLevel').css({background:'#f0dfc7',color:'#7a4e35'}); await loadLeaderboard(1); });
   $('#closeRank').addEventListener('click', () => $('#leaderModal').classList.remove('show'));
   $('#leaderModal').addEventListener('click', e => { if (e.target.id === 'leaderModal') e.currentTarget.classList.remove('show'); });
   $('#playerBtn').addEventListener('click', () => toast(`${state.nickname} · ${state.playerId}`));
