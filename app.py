@@ -19,12 +19,13 @@ HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8089"))
 
 # ---------- admin credentials ----------
-ADMIN_USER = "ysz"
-ADMIN_PASS = "PASSWORD_REMOVED"
-# pbkdf2_hmac hash of admin password (generated at startup)
+ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
+ADMIN_PASS = os.environ.get("ADMIN_PASS", secrets.token_urlsafe(16))
 _admin_salt = secrets.token_hex(16)
 _admin_hash = hashlib.pbkdf2_hmac("sha256", ADMIN_PASS.encode(), _admin_salt.encode(), 200_000).hex()
 _admin_sessions = {}  # token -> expiry timestamp
+if not os.environ.get("ADMIN_PASS"):
+    print(f"[!] ADMIN_PASS not set, using random: {ADMIN_PASS}")
 
 # ---------- default payout config ----------
 DEFAULT_PAYOUT = {
