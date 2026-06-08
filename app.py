@@ -310,49 +310,40 @@ def generate_ticket(ticket_type, streak, player_public_id=None):
 
     # ---- Blackjack (21点) ----
     if kind == "blackjack":
-        win_base, prize_tier = roll_payout(ticket_type, streak, player_public_id)
+        cost = TYPES[ticket_type]["cost"]
         deck = [1,2,3,4,5,6,7,8,9,10,10,10,10] * 4
         random.shuffle(deck)
         player_hand = [deck.pop(), deck.pop()]
         dealer_hand = [deck.pop(), deck.pop()]
         def hand_value(h):
             total = sum(h)
-            # Ace as 11 if it helps
             if 1 in h and total + 10 <= 21:
                 return total + 10
             return total
         player_val = hand_value(player_hand)
         dealer_val = hand_value(dealer_hand)
-        # auto-stand at 21
-        if player_val == 21:
-            win_amount = win_base * 2
-        elif player_val > 21:
-            win_amount = 0  # bust
+        # Fixed prizes: win=2x, push=1x(refund), lose=0, blackjack=2.5x
+        is_blackjack = player_val == 21 and len(player_hand) == 2
+        if is_blackjack:
+            win_amount = int(cost * 2.5)
+            prize_tier = "Blackjack!"
+        elif player_val == 21:
+            win_amount = cost * 2
+            prize_tier = "21点"
         else:
-            # Dealer hits on 16, stands on 17
-            dealer_final = dealer_hand[:]
-            while hand_value(dealer_final) < 17:
-                dealer_final.append(deck.pop())
-            dealer_final_val = hand_value(dealer_final)
-            if dealer_final_val > 21:
-                win_amount = win_base
-            elif player_val > dealer_final_val:
-                win_amount = win_base
-            elif player_val == dealer_final_val:
-                win_amount = 0  # push
-            else:
-                win_amount = 0
-        card_display = {1:"A",11:"J",12:"Q",13:"K"}
+            win_amount = cost * 2  # base win amount if player beats dealer
+            prize_tier = "技巧奖"
         return {
             "mode": "blackjack",
             "playerHand": player_hand,
             "dealerHand": dealer_hand,
             "deck": deck,
+            "_isBlackjack": is_blackjack,
             "_win": win_amount,
-            "resultText": f"你的点数: {player_val}，庄家: {dealer_val}",
+            "resultText": f"你的点数: {player_val}，击败庄家赢 {cost*2} 爽币",
             "prizeTier": prize_tier,
             "maxPrize": 1000000,
-        }, win_amount
+        }, 0  # win determined at finish
 
     # ---- existing scratch card types ----
     win, prize_tier = roll_payout(ticket_type, streak, player_public_id)
@@ -952,17 +943,20 @@ class Handler(SimpleHTTPRequestHandler):
                         while hv(dealer_hand) < 17:
                             dealer_hand.append(deck.pop(0))
                         dealer_val = hv(dealer_hand)
+                        cost = TYPES[ticket_row["ticket_type"]]["cost"]
 
                         if player_val > 21:
                             win = 0  # bust
+                        elif payload.get("_isBlackjack"):
+                            win = int(cost * 2.5)  # natural blackjack
                         elif dealer_val > 21:
-                            win = payload["_win"]
+                            win = cost * 2  # dealer bust
                         elif player_val > dealer_val:
-                            win = payload["_win"]
+                            win = cost * 2  # higher hand
                         elif player_val == dealer_val:
-                            win = 0  # push
+                            win = cost  # push = refund
                         else:
-                            win = 0
+                            win = 0  # dealer higher
 
                         payload["playerHand"] = player_hand
                         payload["dealerHand"] = dealer_hand
