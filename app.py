@@ -155,6 +155,8 @@ def token_hash(token):
 
 
 def player_dict(row, include_private=True):
+    raw_seen = json.loads(row["seen"] or "[]")
+    valid_seen = [s for s in raw_seen if s in TYPES]
     data = {
         "playerId": row["public_id"],
         "nickname": row["nickname"],
@@ -165,7 +167,7 @@ def player_dict(row, include_private=True):
         "wins": row["wins"],
         "best": row["best"],
         "streak": row["streak"],
-        "seen": json.loads(row["seen"] or "[]"),
+        "seen": valid_seen,
         "totalTypes": len(TYPES),
     }
     if not include_private:

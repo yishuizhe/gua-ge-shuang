@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
   <meta name="theme-color" content="#b81025">
   <title>刮个爽 · 好运刮刮乐</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23b81025'/><text x='50' y='72' text-anchor='middle' font-size='64' font-weight='900' fill='%23ffd65a' font-family='sans-serif'>刮</text></svg>">
   <style>
     :root{--red:#d71936;--deep:#740719;--ink:#25100f;--gold:#ffd65a;--gold2:#ff9e1b;--cream:#fff5d9;--paper:#fff9e9;--green:#0d9b68;--muted:#956d5d;--shadow:0 20px 60px rgba(71,8,17,.25)}
     *{box-sizing:border-box}
@@ -287,7 +288,7 @@
         <div class="mission">
           <div class="mission-head">今日挑战</div><strong>集齐全部玩法图鉴</strong>
           <div class="progress"><i id="missionBar"></i></div>
-          <div class="mission-foot"><span id="missionText">0 / 8</span><span>奖励 +100</span></div>
+          <div class="mission-foot"><span id="missionText">0 / 12</span><span>奖励 +100</span></div>
         </div>
       </aside>
       <section class="panel game-shell">
@@ -317,7 +318,7 @@
           <div class="level-row"><div class="level-badge" id="levelBadge">1</div><div class="level-info"><b id="levelName">刮票新手</b><small id="xpText">0 / 100 经验</small></div></div>
           <div class="progress"><i id="xpBar"></i></div>
         </div>
-        <div class="panel-title">好运图鉴 <small id="collectionCount">0 / 8</small></div>
+        <div class="panel-title">好运图鉴 <small id="collectionCount">0 / 12</small></div>
         <div class="collection" id="collection"></div>
         <div class="panel-title">中奖记录 <small id="recordsInfo">最近 10 条</small></div>
         <div class="record-list" id="records"></div>
@@ -763,31 +764,32 @@
 
     $('#slotsSpin').addEventListener('click', async () => {
       $('#slotsSpin').disabled = true;
-      // Spin each reel: accelerate then decelerate
       const durations = [1800, 2200, 2600];
       [0, 1, 2].forEach(i => {
         const inner = $(`#reelInner${i}`);
-        const cycles = 3 + i;
-        // Land so that result row (index 5) is at the visible center (index 2 of visible 5 items)
-        // Offset = (resultIdx - centerVisibleIdx) * itemHeight = (5 - 2) * 56 = 3 * 56 = 168
-        const resultOffset = 168;
-        const total = cycles * n * 56 + resultOffset;
+        const cycles = 4 + i;
+        // Result row (index 5) centered: item pos = 5*56=280, center of 280px window = 140, offset = 280-140=140
+        const resultPos = 140;
+        const total = cycles * n * 56 + resultPos;
         inner.style.transition = `transform ${durations[i]}ms cubic-bezier(.1,.7,.2,1)`;
         inner.style.transform = `translateY(-${total}px)`;
       });
       setTimeout(async () => {
-        // After animation, show result clearly
         const final = reels.map(r => r[5]).join(' ');
         let msg = `结果: ${final}`;
         const uniq = new Set(reels.map(r => r[5]));
         if (uniq.size === 1) msg += ' 🎉 三连中！';
         else if (uniq.size === 2) msg += ' ✨ 两连中！';
         $('#slotsResult').textContent = msg;
-        // Snap reels to show result neatly
+        // Hard reset then snap to result position
         [0, 1, 2].forEach(i => {
           const inner = $(`#reelInner${i}`);
-          inner.style.transition = 'transform 0.3s ease-out';
-          inner.style.transform = 'translateY(-168px)';
+          inner.style.transition = 'none';
+          inner.style.transform = 'translateY(0px)';
+          // Force layout recalculation then snap
+          inner.offsetHeight;
+          inner.style.transition = 'transform 0.4s ease-out';
+          inner.style.transform = 'translateY(-140px)';
         });
         try {
           await finishTicket();
