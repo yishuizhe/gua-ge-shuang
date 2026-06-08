@@ -156,8 +156,8 @@
     .claw-btn{border:0;border-radius:14px;padding:12px 28px;background:#4ade80;color:#1a3a1a;font-weight:1000;cursor:pointer;font-size:15px}
     .claw-btn:disabled{opacity:.5;cursor:not-allowed}
     /* Pagination */
-    .page-controls{display:flex;align-items:center;gap:4px;justify-content:center;padding:6px 8px;flex-wrap:wrap}
-    .page-btn{border:1px solid #d4b896;background:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:10px;font-weight:700;color:#7a4e35;min-width:28px;text-align:center}
+    .page-controls{display:flex;align-items:center;gap:2px;justify-content:center;padding:5px 4px;flex-wrap:nowrap}
+    .page-btn{border:1px solid #d4b896;background:#fff;border-radius:5px;padding:3px 6px;cursor:pointer;font-size:10px;font-weight:700;color:#7a4e35;min-width:24px;text-align:center;white-space:nowrap}
     .page-btn:disabled{opacity:.4;cursor:not-allowed}
     .page-btn.active{background:#d71936;color:white;border-color:#d71936}
     .page-info{font-size:10px;color:#a98772;min-width:60px;text-align:center}
@@ -495,17 +495,9 @@
 
   function pageButtons(cur, total, prefix) {
     if (total <= 1) return '';
-    const btns = [];
-    btns.push(`<button class="page-btn" data-${prefix}="${Math.max(1, cur - 1)}" ${cur <= 1 ? 'disabled' : ''}>◀</button>`);
-    const maxShow = 5;
-    let start = Math.max(1, cur - Math.floor(maxShow / 2));
-    let end = Math.min(total, start + maxShow - 1);
-    if (end - start < maxShow - 1) start = Math.max(1, end - maxShow + 1);
-    if (start > 1) { btns.push(`<button class="page-btn" data-${prefix}="1">1</button>`); if (start > 2) btns.push('<span style="font-size:10px;color:#b3937e">…</span>'); }
-    for (let i = start; i <= end; i++) btns.push(`<button class="page-btn ${i === cur ? 'active' : ''}" data-${prefix}="${i}">${i}</button>`);
-    if (end < total) { if (end < total - 1) btns.push('<span style="font-size:10px;color:#b3937e">…</span>'); btns.push(`<button class="page-btn" data-${prefix}="${total}">${total}</button>`); }
-    btns.push(`<button class="page-btn" data-${prefix}="${Math.min(total, cur + 1)}" ${cur >= total ? 'disabled' : ''}>▶</button>`);
-    return btns.join('');
+    return `<button class="page-btn" data-${prefix}="${Math.max(1, cur - 1)}" ${cur <= 1 ? 'disabled' : ''}>◀</button>
+      <span class="page-info">${cur}/${total}</span>
+      <button class="page-btn" data-${prefix}="${Math.min(total, cur + 1)}" ${cur >= total ? 'disabled' : ''}>▶</button>`;
   }
 
   function renderRecords() {
