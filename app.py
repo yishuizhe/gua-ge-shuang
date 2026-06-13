@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
+import ast
 import hashlib
 import json
+import operator
 import os
 import random
 import re
@@ -17,6 +19,7 @@ ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get("SCRATCH_DB", ROOT / "data" / "scratch_game.db"))
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8089"))
+APP_VERSION = "2.4.0"
 
 # ---------- admin credentials ----------
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
@@ -52,6 +55,9 @@ TYPES = {
     "ssq": {"name": "双色球", "icon": "🔴", "cost": 2, "kind": "ssq"},
     "baccarat": {"name": "百家乐", "icon": "🎴", "cost": 25, "kind": "baccarat"},
     "dice": {"name": "猜大小", "icon": "🎲", "cost": 10, "kind": "dice"},
+    "twentyfour": {"name": "24点挑战", "icon": "🧠", "cost": 10, "kind": "twentyfour"},
+    "pusher": {"name": "推币机", "icon": "🪙", "cost": 10, "kind": "pusher"},
+    "claw": {"name": "抓娃娃机", "icon": "🕹️", "cost": 20, "kind": "claw"},
     "slots": {"name": "水果机", "icon": "🍒", "cost": 5, "kind": "slots"},
     "pinball": {"name": "弹珠台", "icon": "🔮", "cost": 8, "kind": "pinball"},
     "wheel": {"name": "幸运转盘", "icon": "🎡", "cost": 10, "kind": "wheel"},
@@ -87,6 +93,7 @@ def init_db():
                 streak INTEGER NOT NULL DEFAULT 0,
                 seen TEXT NOT NULL DEFAULT '[]',
                 last_ticket_at REAL NOT NULL DEFAULT 0,
+                last_gift_day TEXT NOT NULL DEFAULT '',
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
             );
@@ -120,6 +127,10 @@ def init_db():
             conn.execute("ALTER TABLE players ADD COLUMN last_ticket_at REAL NOT NULL DEFAULT 0")
         except sqlite3.OperationalError:
             pass  # column already exists
+        try:
+            conn.execute("ALTER TABLE players ADD COLUMN last_gift_day TEXT NOT NULL DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass
         # ensure default config exists
         for k, v in DEFAULT_PAYOUT.items():
             conn.execute(
@@ -145,9 +156,43 @@ def get_config():
 
 
 def set_config(updates):
+    allowed = set(DEFAULT_PAYOUT)
+    allowed.update(
+        f"game_{game_id}_{suffix}"
+        for game_id in TYPES
+        for suffix in ("enabled", "cost", "winrate")
+    )
+    allowed.update(k for k in updates if k.startswith("user_GS-") and k.endswith("_rate"))
+    unknown = set(updates) - allowed
+    if unknown:
+        raise ValueError(f"未知配置项: {', '.join(sorted(unknown))}")
+
+    normalized = {}
+    for key, value in updates.items():
+        if value is None or (isinstance(value, str) and value.strip() == ""):
+            normalized[key] = None
+            continue
+        if key.endswith("_enabled"):
+            normalized[key] = "1" if str(value) in ("1", "true", "True") else "0"
+        elif key.endswith("_cost"):
+            normalized[key] = str(max(1, min(10000, int(float(value)))))
+        elif key.endswith("_winrate"):
+            normalized[key] = str(max(0.0, min(1.0, float(value))))
+        elif key.startswith("user_") and key.endswith("_rate"):
+            normalized[key] = str(max(0.0, min(10.0, float(value))))
+        else:
+            normalized[key] = str(max(0.0, min(1.0, float(value))))
+
+    probability_keys = ("lose", "break_even", "small", "medium", "big", "super", "diamond", "legend")
+    prospective = get_config()
+    prospective.update({k: float(v) for k, v in normalized.items() if k in probability_keys and v is not None})
+    total = sum(float(prospective.get(k, DEFAULT_PAYOUT[k])) for k in probability_keys)
+    if total > 1.000001:
+        raise ValueError(f"奖池概率合计不能超过 100%，当前为 {total * 100:.3f}%")
+
     with db() as conn:
-        for k, v in updates.items():
-            if v is None or (isinstance(v, str) and v.strip() == ""):
+        for k, v in normalized.items():
+            if v is None:
                 conn.execute("DELETE FROM admin_config WHERE key=?", (k,))
             else:
                 conn.execute(
@@ -176,6 +221,7 @@ def player_dict(row, include_private=True):
         "streak": row["streak"],
         "seen": valid_seen,
         "totalTypes": len(TYPES),
+        "dailyGiftAvailable": row["last_gift_day"] != china_day(),
     }
     if not include_private:
         return {
@@ -236,82 +282,152 @@ def check_rate_limit(player_row, client_ip):
     return True, ""
 
 
+def china_day(timestamp=None):
+    timestamp = time.time() if timestamp is None else timestamp
+    return time.strftime("%Y-%m-%d", time.gmtime(timestamp + 8 * 3600))
+
+
+# ---------- 24-point expression validation ----------
+ALLOWED_OPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.USub: operator.neg,
+}
+
+
+def _eval_ast(node):
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return node.value
+    if isinstance(node, ast.BinOp) and type(node.op) in ALLOWED_OPS:
+        return ALLOWED_OPS[type(node.op)](_eval_ast(node.left), _eval_ast(node.right))
+    if isinstance(node, ast.UnaryOp) and type(node.op) in ALLOWED_OPS:
+        return ALLOWED_OPS[type(node.op)](_eval_ast(node.operand))
+    raise ValueError("不支持的算式")
+
+
+def validate_24_answer(expr, numbers):
+    expr = expr.strip()
+    if not expr or not re.fullmatch(r"[\d\s+\-*/()]+", expr):
+        return False, "只可使用牌面数字、括号和加减乘除"
+    used = sorted(int(value) for value in re.findall(r"\d+", expr))
+    expected = sorted(numbers)
+    if used != expected:
+        return False, f"必须恰好使用这四张牌：{expected}"
+    try:
+        result = _eval_ast(ast.parse(expr, mode="eval").body)
+    except (SyntaxError, ValueError, ZeroDivisionError):
+        return False, "算式无法计算，请检查括号和运算符"
+    if abs(result - 24) > 0.001:
+        return False, f"算式结果是 {result:g}，还不是 24"
+    return True, "回答正确"
+
+
 # ---------- payout engine ----------
-def roll_payout(ticket_type, streak, player_public_id=None):
-    """Server-authoritative payout with configurable tiers and per-game/per-user overrides."""
+def roll_payout(ticket_type, streak, player_public_id=None, cost_override=None):
+    """Server-authoritative payout with bounded, normalized probabilities."""
     cfg = get_config()
-    cost = TYPES[ticket_type]["cost"]
+    cost = int(cost_override if cost_override is not None else TYPES[ticket_type]["cost"])
     pity = min(cfg.get("pity_max", 0.04), streak * cfg.get("pity_step", 0.002))
+    tier_names = ("break_even", "small", "medium", "big", "super", "diamond", "legend")
+    tier_weights = [max(0.0, float(cfg.get(name, DEFAULT_PAYOUT[name]))) for name in tier_names]
+    base_win_rate = sum(tier_weights)
+    game_rate = cfg.get(f"game_{ticket_type}_winrate")
+    win_rate = float(game_rate) if game_rate is not None else base_win_rate + pity
+    user_mult = float(cfg.get(f"user_{player_public_id}_rate", 1.0)) if player_public_id else 1.0
+    win_rate = max(0.0, min(0.95, win_rate * user_mult))
 
-    # Per-game win rate override
-    game_rate_key = f"game_{ticket_type}_winrate"
-    game_rate = cfg.get(game_rate_key)
-    if game_rate is not None:
-        try:
-            game_rate = float(game_rate)
-        except (ValueError, TypeError):
-            game_rate = None
-
-    # Per-user rate multiplier
-    user_mult = 1.0
-    if player_public_id:
-        user_mult = float(cfg.get(f"user_{player_public_id}_rate", "1.0"))
-
-    if game_rate is not None:
-        # game_rate is total win probability (0-1), distribute proportionally
-        base_win = 1.0 - cfg.get("lose", 0.614) + pity
-        scale = game_rate / max(base_win, 0.001) if base_win > 0 else 1.0
-        lose_p = 1.0 - game_rate
-    else:
-        scale = 1.0
-        lose_p = cfg.get("lose", 0.614) - pity
-
-    # Apply user multiplier to win chances
-    if user_mult != 1.0:
-        scale *= user_mult
-        lose_p = max(0.05, lose_p - (user_mult - 1.0) * 0.1)
-
-    roll = random.random()
-    be_s = cfg.get("break_even", 0.23) * scale
-    sm_s = cfg.get("small", 0.10) * scale
-    md_s = cfg.get("medium", 0.04) * scale
-    bg_s = cfg.get("big", 0.009) * scale
-    sp_s = cfg.get("super", 0.0008) * scale
-    dm_s = cfg.get("diamond", 0.00015) * scale
-    lg_s = cfg.get("legend", 0.00005) * scale
-
-    be_p = lose_p + be_s
-    small_p = be_p + sm_s
-    medium_p = small_p + md_s
-    big_p = medium_p + bg_s
-    super_p = big_p + sp_s
-    diamond_p = super_p + dm_s
-    legend_p = min(1.0, diamond_p + lg_s)
-
-    if roll < lose_p:
+    if random.random() >= win_rate or base_win_rate <= 0:
         return 0, "未中奖"
-    if roll < be_p:
-        return cost, "回本"
-    if roll < small_p:
-        return cost * 2, "小奖"
-    if roll < medium_p:
-        return cost * 5, "中奖"
-    if roll < big_p:
-        return cost * 10, "大奖"
-    if roll < super_p:
-        return 10000, "超级大奖"
-    if roll < diamond_p:
-        return 100000, "钻石大奖"
-    if roll < legend_p:
-        return 1000000, "传说大奖"
-    return 0, "未中奖"
+
+    tier = random.choices(tier_names, weights=tier_weights, k=1)[0]
+    payouts = {
+        "break_even": (cost, "回本"),
+        "small": (cost * 2, "小奖"),
+        "medium": (cost * 5, "中奖"),
+        "big": (cost * 10, "大奖"),
+        "super": (10000, "超级大奖"),
+        "diamond": (100000, "钻石大奖"),
+        "legend": (1000000, "传说大奖"),
+    }
+    return payouts[tier]
 
 
 # ---------- ticket generators ----------
-def generate_ticket(ticket_type, streak, player_public_id=None):
+def generate_ticket(ticket_type, streak, player_public_id=None, cost_override=None):
     kind = TYPES[ticket_type]["kind"]
-    cost = TYPES[ticket_type]["cost"]
+    cost = int(cost_override if cost_override is not None else TYPES[ticket_type]["cost"])
     cells, winning = [], []
+
+    if kind == "twentyfour":
+        solvable_sets = [
+            [1, 2, 3, 4], [1, 3, 5, 6], [2, 3, 4, 6], [3, 3, 8, 8],
+            [1, 5, 5, 5], [2, 2, 5, 10], [2, 3, 3, 8], [1, 3, 4, 6],
+            [2, 4, 6, 8], [3, 4, 5, 6], [4, 4, 7, 7], [2, 5, 7, 8],
+        ]
+        numbers = random.choice(solvable_sets)[:]
+        random.shuffle(numbers)
+        cards = [
+            {"value": number, "display": "A" if number == 1 else str(number),
+             "suit": random.choice(["♠", "♥", "♣", "♦"])}
+            for number in numbers
+        ]
+        return {
+            "mode": "twentyfour",
+            "cards": cards,
+            "_numbers": numbers,
+            "resultText": "四张牌都要使用一次，用加减乘除凑出 24",
+            "prizeTier": "技巧奖",
+            "maxPrize": cost * 5,
+        }, cost * 5
+
+    if kind == "pusher":
+        win, prize_tier = roll_payout(ticket_type, streak, player_public_id, cost)
+        target_x = round(random.uniform(0.12, 0.88), 3)
+        coins = [
+            {
+                "x": round(random.uniform(0.05, 0.95), 3),
+                "y": round(random.uniform(0.08, 0.88), 3),
+                "size": random.choice([0.8, 1.0, 1.2]),
+            }
+            for _ in range(random.randint(20, 32))
+        ]
+        return {
+            "mode": "pusher",
+            "coins": coins,
+            "_targetX": target_x,
+            "_tolerance": 0.16,
+            "resultText": "瞄准币堆密集处投币，落点会影响结算",
+            "prizeTier": prize_tier,
+            "maxPrize": 1000000,
+        }, win
+
+    if kind == "claw":
+        win, prize_tier = roll_payout(ticket_type, streak, player_public_id, cost)
+        toy_types = [
+            ("🐼", "熊猫", 1.0), ("🦁", "狮子", 1.1), ("🐰", "兔子", 0.9),
+            ("🐻", "小熊", 1.0), ("🐸", "青蛙", 0.85), ("🐱", "猫咪", 0.9),
+            ("🦊", "狐狸", 0.95), ("🐨", "考拉", 0.9),
+        ]
+        chosen = random.sample(toy_types, 6)
+        toys = [
+            {
+                "emoji": emoji,
+                "name": name,
+                "size": size,
+                "x": round(0.1 + index * 0.16 + random.uniform(-0.015, 0.015), 3),
+            }
+            for index, (emoji, name, size) in enumerate(chosen)
+        ]
+        return {
+            "mode": "claw",
+            "toys": toys,
+            "_winningSlot": random.randrange(len(toys)) if win else -1,
+            "resultText": "移动机械爪瞄准娃娃，抓取结果由服务器结算",
+            "prizeTier": prize_tier,
+            "maxPrize": 1000000,
+        }, win
 
     # ---- Blackjack (21点) ----
     if kind == "blackjack":
@@ -341,8 +457,9 @@ def generate_ticket(ticket_type, streak, player_public_id=None):
         return {
             "mode": "blackjack",
             "playerHand": player_hand,
-            "dealerHand": dealer_hand,
-            "deck": deck,
+            "dealerUpCard": dealer_hand[0],
+            "_dealerHand": dealer_hand,
+            "_deck": deck,
             "_isBlackjack": is_blackjack,
             "_win": win_amount,
             "resultText": f"你的点数: {player_val}，击败庄家赢 {cost*2} 爽币",
@@ -351,7 +468,7 @@ def generate_ticket(ticket_type, streak, player_public_id=None):
         }, 0  # win determined at finish
 
     # ---- existing scratch card types ----
-    win, prize_tier = roll_payout(ticket_type, streak, player_public_id)
+    win, prize_tier = roll_payout(ticket_type, streak, player_public_id, cost)
 
     if kind == "match":
         ordinary = [
@@ -426,14 +543,31 @@ def generate_ticket(ticket_type, streak, player_public_id=None):
 
     # ---- new: SSQ (双色球) ----
     elif kind == "ssq":
-        win, prize_tier = roll_payout(ticket_type, streak, player_public_id)
-        # Generate player numbers and winning numbers
         player_reds = sorted(random.sample(range(1, 34), 6))
         player_blue = random.randint(1, 16)
-        server_reds = sorted(random.sample(range(1, 34), 6))
-        server_blue = random.randint(1, 16)
+        red_pool = [n for n in range(1, 34) if n not in player_reds]
+        if not win:
+            match_count, blue_match = random.choice([(0, False), (1, False), (2, False)])
+        elif prize_tier == "回本":
+            match_count, blue_match = 3, True
+        elif prize_tier == "小奖":
+            match_count, blue_match = 4, False
+        elif prize_tier == "中奖":
+            match_count, blue_match = 4, True
+        elif prize_tier == "大奖":
+            match_count, blue_match = 5, False
+        elif prize_tier == "超级大奖":
+            match_count, blue_match = 5, True
+        elif prize_tier == "钻石大奖":
+            match_count, blue_match = 6, False
+        else:
+            match_count, blue_match = 6, True
+        server_reds = sorted(random.sample(player_reds, match_count) + random.sample(red_pool, 6 - match_count))
+        if blue_match:
+            server_blue = player_blue
+        else:
+            server_blue = random.choice([n for n in range(1, 17) if n != player_blue])
         red_matches = len(set(player_reds) & set(server_reds))
-        blue_match = player_blue == server_blue
         return {
             "mode": "ssq",
             "playerReds": player_reds,
@@ -450,8 +584,6 @@ def generate_ticket(ticket_type, streak, player_public_id=None):
 
     # ---- new: baccarat ----
     elif kind == "baccarat":
-        win, prize_tier = roll_payout(ticket_type, streak, player_public_id)
-        # Simulate a hand
         player_hand = [random.randint(1, 9), random.randint(1, 9)]
         banker_hand = [random.randint(1, 9), random.randint(1, 9)]
         player_total = sum(player_hand) % 10
@@ -464,16 +596,15 @@ def generate_ticket(ticket_type, streak, player_public_id=None):
             result = "和"
         return {
             "mode": "baccarat",
-            "playerHand": player_hand,
-            "bankerHand": banker_hand,
-            "playerTotal": player_total,
-            "bankerTotal": banker_total,
-            "result": result,
-            "_win": win,
-            "resultText": f"{result}赢{' (和局)' if result == '和' else ''}",
-            "prizeTier": prize_tier,
+            "_playerHand": player_hand,
+            "_bankerHand": banker_hand,
+            "_playerTotal": player_total,
+            "_bankerTotal": banker_total,
+            "_result": result,
+            "resultText": "选择闲、庄或和，再揭晓牌面",
+            "prizeTier": "技巧奖",
             "maxPrize": 1000000,
-        }, win
+        }, 0
 
     # ---- new: dice (猜大小) ----
     elif kind == "dice":
@@ -481,22 +612,14 @@ def generate_ticket(ticket_type, streak, player_public_id=None):
         dice_total = sum(dice)
         is_big = dice_total >= 11
         is_triple = dice[0] == dice[1] == dice[2]
-        bet_type = "big" if is_big else "small"
-        if is_triple:
-            bet_type = "triple"
-        win, prize_tier = roll_payout(ticket_type, streak, player_public_id)
-        if not win:
-            # force wrong bet hint
-            bet_type = ""
         return {
             "mode": "dice",
-            "dice": dice,
-            "total": dice_total,
+            "_dice": dice,
+            "_total": dice_total,
             "_isBig": is_big,
             "_isTriple": is_triple,
-            "_betType": bet_type,
-            "resultText": f"骰子点数: {dice_total} {'大' if is_big else '小'}",
-            "prizeTier": prize_tier,
+            "resultText": "下注后由服务器揭晓三颗骰子",
+            "prizeTier": "技巧奖",
             "maxPrize": 1000000,
         }, win
 
@@ -510,37 +633,35 @@ def generate_ticket(ticket_type, streak, player_public_id=None):
             for _ in range(12):
                 reel.append(random.choices(fruits, weights=weights)[0])
             reels.append(reel)
-        # Determine win from final positions (middle row)
-        final = [reel[5] for reel in reels]
-        if final[0] == final[1] == final[2]:
-            multiplier = 8
-        elif final[0] == final[1] or final[1] == final[2]:
-            multiplier = 3
+        if win:
+            symbol = random.choice(fruits)
+            if prize_tier in ("超级大奖", "钻石大奖", "传说大奖"):
+                final = [symbol, symbol, symbol]
+            else:
+                other = random.choice([f for f in fruits if f != symbol])
+                final = [symbol, symbol, other]
+                random.shuffle(final)
         else:
-            multiplier = 0
-        actual_win = win if multiplier else 0
+            final = random.sample(fruits, 3)
+        for index, symbol in enumerate(final):
+            reels[index][5] = symbol
         return {
             "mode": "slots",
             "reels": reels,
             "_final": final,
-            "_multiplier": multiplier,
             "resultText": "转轮停止，看看你的运气",
             "prizeTier": prize_tier,
             "maxPrize": 1000000,
-        }, actual_win
+        }, win
 
     # ---- new: pinball (with pegs) ----
     elif kind == "pinball":
-        slot_payouts = [0, cost, cost, cost * 2, cost * 2, cost * 3, cost * 5, cost * 10]
-        slot_labels = ["空", "回本", "回本", "小奖", "小奖", "中奖", "大奖", "超级"]
-        win, prize_tier = roll_payout(ticket_type, streak, player_public_id)
-        target_slot = random.choices(
-            range(len(slot_payouts)),
-            weights=[40, 20, 15, 10, 7, 5, 2, 1]
-        )[0]
+        slot_payouts = [0, cost, cost * 2, 0, cost * 5, cost, cost * 10, 0]
+        slot_labels = ["空", "回本", "小奖", "空", "中奖", "回本", "大奖", "空"]
+        target_slot = random.choice([0, 3, 7]) if not win else random.randrange(len(slot_payouts))
         if win:
-            paying_slots = [i for i, p in enumerate(slot_payouts) if p > 0]
-            target_slot = random.choice(paying_slots)
+            slot_payouts[target_slot] = win
+            slot_labels[target_slot] = prize_tier
         # Generate random peg bounce path
         pegs = []
         rows = 8
@@ -554,8 +675,7 @@ def generate_ticket(ticket_type, streak, player_public_id=None):
         return {
             "mode": "pinball",
             "slots": [{"label": l, "payout": p} for l, p in zip(slot_labels, slot_payouts)],
-            "_targetSlot": target_slot,
-            "_pegs": pegs,
+            "targetSlot": target_slot,
             "resultText": "弹珠落下，看看落入哪个奖池",
             "prizeTier": prize_tier,
             "maxPrize": 1000000,
@@ -575,11 +695,10 @@ def generate_ticket(ticket_type, streak, player_public_id=None):
             {"label": "超级", "payout": cost * 50, "color": "#f1c40f"},
             {"label": "传说", "payout": cost * 100, "color": "#ff6348"},
         ]
-        weights = [25, 23, 15, 12, 8, 7, 5, 3, 1.5, 0.5]
-        win, prize_tier = roll_payout(ticket_type, streak, player_public_id)
-        target_seg = random.choices(range(len(segments)), weights=weights)[0]
-        if not win:
-            target_seg = random.choice([0, 1])  # force lose to empty
+        target_seg = random.choice([0, 1]) if not win else random.randrange(2, len(segments))
+        if win:
+            segments[target_seg]["payout"] = win
+            segments[target_seg]["label"] = prize_tier
         return {
             "mode": "wheel",
             "segments": segments,
@@ -611,7 +730,7 @@ def generate_ticket(ticket_type, streak, player_public_id=None):
 
 # ---------- HTTP Handler ----------
 class Handler(SimpleHTTPRequestHandler):
-    server_version = "ScratchGame/2.0"
+    server_version = f"ScratchGame/{APP_VERSION}"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -667,7 +786,18 @@ class Handler(SimpleHTTPRequestHandler):
                     params[k] = unquote_plus(v)
 
         if path == "/api/health":
-            return self.send_json({"ok": True})
+            return self.send_json({"ok": True, "version": APP_VERSION})
+
+        if path == "/api/catalog":
+            cfg = get_config()
+            games = []
+            for game_id, game in TYPES.items():
+                games.append({
+                    "id": game_id,
+                    "cost": int(cfg.get(f"game_{game_id}_cost", game["cost"])),
+                    "enabled": str(cfg.get(f"game_{game_id}_enabled", "1")) not in ("0", "0.0"),
+                })
+            return self.send_json({"games": games})
 
         # ---- admin GET routes ----
         if path == "/admin/config":
@@ -788,7 +918,10 @@ class Handler(SimpleHTTPRequestHandler):
             if admin_token not in _admin_sessions or _admin_sessions[admin_token] < time.time():
                 return self.send_json({"error": "admin_unauthorized"}, HTTPStatus.UNAUTHORIZED)
             if data:
-                set_config({k: str(v) for k, v in data.items()})
+                try:
+                    set_config(data)
+                except (TypeError, ValueError) as exc:
+                    return self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return self.send_json({"config": get_config()})
 
         # admin stats handled in do_GET
@@ -843,6 +976,23 @@ class Handler(SimpleHTTPRequestHandler):
                     return self.send_json({"error": "create_failed"}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return self.send_json({"token": token, "player": player_dict(player), "records": [], "records_total": 0}, HTTPStatus.CREATED)
 
+        if path == "/api/daily-gift":
+            with db() as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                player = self.auth_player(conn)
+                if not player:
+                    return self.send_json({"error": "unauthorized"}, HTTPStatus.UNAUTHORIZED)
+                today = china_day()
+                if player["last_gift_day"] == today:
+                    return self.send_json({"error": "今日好运金已经领取"}, HTTPStatus.CONFLICT)
+                now = int(time.time())
+                conn.execute(
+                    "UPDATE players SET coins=coins+80,last_gift_day=?,updated_at=? WHERE id=?",
+                    (today, now, player["id"]),
+                )
+                player = conn.execute("SELECT * FROM players WHERE id=?", (player["id"],)).fetchone()
+            return self.send_json({"gift": 80, "player": player_dict(player)})
+
         # ---- buy ticket ----
         if path == "/api/tickets":
             ticket_type = str(data.get("type", ""))
@@ -850,7 +1000,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({"error": "unknown_ticket"}, HTTPStatus.BAD_REQUEST)
             # Check if game is enabled
             cfg = get_config()
-            if cfg.get(f"game_{ticket_type}_enabled", "1") == "0":
+            if str(cfg.get(f"game_{ticket_type}_enabled", "1")) in ("0", "0.0"):
                 return self.send_json({"error": "该玩法暂未开放"}, HTTPStatus.BAD_REQUEST)
             with db() as conn:
                 conn.execute("BEGIN IMMEDIATE")
@@ -869,12 +1019,14 @@ class Handler(SimpleHTTPRequestHandler):
                 if custom_cost is not None:
                     cost = int(custom_cost)
                 coins = player["coins"]
-                gift = 0
                 if coins < cost:
-                    gift = 100
-                    coins += gift
+                    return self.send_json(
+                        {"error": "爽币不足，请领取每日好运金或选择低票价玩法", "code": "insufficient_coins"},
+                        HTTPStatus.PAYMENT_REQUIRED,
+                    )
 
-                payload, win = generate_ticket(ticket_type, player["streak"], player["public_id"])
+                payload, win = generate_ticket(ticket_type, player["streak"], player["public_id"], cost)
+                payload["_cost"] = cost
                 ticket_id = secrets.token_urlsafe(18)
                 now = int(time.time())
 
@@ -893,7 +1045,7 @@ class Handler(SimpleHTTPRequestHandler):
                 "ticketId": ticket_id,
                 "ticket": public_payload,
                 "player": player_dict(player),
-                "gift": gift,
+                "cost": cost,
             })
 
         # ---- finish ticket ----
@@ -913,12 +1065,37 @@ class Handler(SimpleHTTPRequestHandler):
                     payload = json.loads(ticket_row["payload"])
                     win = ticket_row["win"]
 
+                    if payload.get("mode") == "twentyfour":
+                        valid, message = validate_24_answer(
+                            str(data.get("answer", "")),
+                            payload["_numbers"],
+                        )
+                        payload["_validationMessage"] = message
+                        if not valid:
+                            win = 0
+
+                    elif payload.get("mode") == "pusher":
+                        try:
+                            drop_x = float(data.get("dropX", -1))
+                        except (TypeError, ValueError):
+                            drop_x = -1
+                        if abs(drop_x - payload["_targetX"]) > payload["_tolerance"]:
+                            win = 0
+
+                    elif payload.get("mode") == "claw":
+                        try:
+                            slot = int(data.get("slot", -1))
+                        except (TypeError, ValueError):
+                            slot = -1
+                        if slot != payload["_winningSlot"]:
+                            win = 0
+
                     # blackjack: handle hit/stand
-                    if payload.get("mode") == "blackjack":
+                    elif payload.get("mode") == "blackjack":
                         action = str(data.get("action", "stand"))
-                        deck = payload["deck"]
+                        deck = payload["_deck"]
                         player_hand = payload["playerHand"][:]
-                        dealer_hand = payload["dealerHand"][:]
+                        dealer_hand = payload["_dealerHand"][:]
 
                         def hv(h):
                             t = sum(h)
@@ -935,7 +1112,7 @@ class Handler(SimpleHTTPRequestHandler):
                                 # still can continue, don't settle yet
                                 # return current state so frontend can show updated cards
                                 payload["playerHand"] = player_hand
-                                payload["deck"] = deck
+                                payload["_deck"] = deck
                                 conn.execute(
                                     "UPDATE tickets SET payload=? WHERE id=?",
                                     (json.dumps(payload, ensure_ascii=False), ticket_row["id"]),
@@ -948,7 +1125,7 @@ class Handler(SimpleHTTPRequestHandler):
                                     "hitOngoing": True,
                                     "playerHand": player_hand,
                                     "playerVal": player_val,
-                                    "dealerHand": dealer_hand,
+                                    "dealerUpCard": dealer_hand[0],
                                     "player": player_dict(player),
                                 })
 
@@ -957,7 +1134,7 @@ class Handler(SimpleHTTPRequestHandler):
                         while hv(dealer_hand) < 17:
                             dealer_hand.append(deck.pop(0))
                         dealer_val = hv(dealer_hand)
-                        cost = TYPES[ticket_row["ticket_type"]]["cost"]
+                        cost = int(payload.get("_cost", TYPES[ticket_row["ticket_type"]]["cost"]))
 
                         if player_val > 21:
                             win = 0  # bust
@@ -973,7 +1150,7 @@ class Handler(SimpleHTTPRequestHandler):
                             win = 0  # dealer higher
 
                         payload["playerHand"] = player_hand
-                        payload["dealerHand"] = dealer_hand
+                        payload["_dealerHand"] = dealer_hand
 
                     # dice: check bet
                     elif payload.get("mode") == "dice":
@@ -982,7 +1159,7 @@ class Handler(SimpleHTTPRequestHandler):
                             correct = (bet == "triple")
                         else:
                             correct = (bet == "big" and payload["_isBig"]) or (bet == "small" and not payload["_isBig"])
-                        cost = TYPES[ticket_row["ticket_type"]]["cost"]
+                        cost = int(payload.get("_cost", TYPES[ticket_row["ticket_type"]]["cost"]))
                         if correct:
                             win = cost * 2  # 猜中 = 2倍票价
                         else:
@@ -992,9 +1169,23 @@ class Handler(SimpleHTTPRequestHandler):
                     elif payload.get("mode") == "ssq":
                         win = payload["_win"]
 
-                    # baccarat / slots / pinball / wheel - win already set
+                    # baccarat: player chooses before cards are revealed
                     elif payload.get("mode") == "baccarat":
-                        win = payload["_win"]
+                        bet = str(data.get("bet", ""))
+                        result = payload["_result"]
+                        cost = int(payload.get("_cost", TYPES[ticket_row["ticket_type"]]["cost"]))
+                        if bet == result:
+                            win = cost * (8 if result == "和" else 2)
+                        else:
+                            win = 0
+
+                    elif payload.get("mode") == "pinball":
+                        try:
+                            slot = int(data.get("slot", -1))
+                        except (TypeError, ValueError):
+                            slot = -1
+                        if slot != payload["targetSlot"]:
+                            win = 0
 
                     played = player["played"] + 1
                     wins = player["wins"] + (1 if win else 0)
@@ -1019,7 +1210,10 @@ class Handler(SimpleHTTPRequestHandler):
                            WHERE id=?""",
                         (coins, xp, level, played, wins, best, streak, json.dumps(seen), now, player["id"]),
                     )
-                    conn.execute("UPDATE tickets SET settled=1,settled_at=?,win=? WHERE id=?", (now, win, ticket_row["id"]))
+                    conn.execute(
+                        "UPDATE tickets SET settled=1,settled_at=?,win=?,payload=? WHERE id=?",
+                        (now, win, json.dumps(payload, ensure_ascii=False), ticket_row["id"]),
+                    )
                     conn.execute(
                         "INSERT INTO records(player_id,ticket_type,win,created_at) VALUES(?,?,?,?)",
                         (player["id"], ticket_row["ticket_type"], win, now),
@@ -1037,7 +1231,19 @@ class Handler(SimpleHTTPRequestHandler):
             final_payload = json.loads(ticket_row["payload"])
             if final_payload.get("mode") == "blackjack":
                 resp["playerHand"] = final_payload.get("playerHand", [])
-                resp["dealerHand"] = final_payload.get("dealerHand", [])
+                resp["dealerHand"] = final_payload.get("_dealerHand", [])
+            elif final_payload.get("mode") == "twentyfour":
+                resp["validationMessage"] = final_payload.get("_validationMessage", "")
+            elif final_payload.get("mode") == "dice":
+                resp["dice"] = final_payload.get("_dice", [])
+                resp["total"] = final_payload.get("_total", 0)
+                resp["isTriple"] = final_payload.get("_isTriple", False)
+            elif final_payload.get("mode") == "baccarat":
+                resp["playerHand"] = final_payload.get("_playerHand", [])
+                resp["bankerHand"] = final_payload.get("_bankerHand", [])
+                resp["playerTotal"] = final_payload.get("_playerTotal", 0)
+                resp["bankerTotal"] = final_payload.get("_bankerTotal", 0)
+                resp["result"] = final_payload.get("_result", "")
             return self.send_json(resp)
 
         return self.send_json({"error": "not_found"}, HTTPStatus.NOT_FOUND)
@@ -1045,5 +1251,5 @@ class Handler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     init_db()
-    print(f"Scratch Game v2.0 listening on http://{HOST}:{PORT}")
+    print(f"Scratch Game v{APP_VERSION} listening on http://{HOST}:{PORT}")
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()

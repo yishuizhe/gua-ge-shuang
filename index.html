@@ -30,11 +30,16 @@
     .pill b{font-size:19px;color:var(--gold);font-variant-numeric:tabular-nums}
     .icon-btn{width:45px;padding:0;justify-content:center;cursor:pointer}
     .player-pill{cursor:pointer;max-width:150px}.player-pill span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:82px}
+    .gift-btn{cursor:pointer;border-color:rgba(255,217,96,.45);background:linear-gradient(145deg,rgba(255,211,80,.25),rgba(132,28,47,.45))}
+    .gift-btn[disabled]{opacity:.48;cursor:default}
     .layout{display:grid;grid-template-columns:245px minmax(430px,760px) 260px;gap:16px;align-items:start;justify-content:center}
     .panel{border-radius:24px;background:rgba(255,247,225,.95);box-shadow:var(--shadow);border:1px solid rgba(255,255,255,.6);overflow:hidden}
     .panel-title{padding:17px 18px 11px;font-size:14px;font-weight:900;display:flex;align-items:center;justify-content:space-between}
     .panel-title small{font-size:10px;color:var(--muted);font-weight:600}
     .shop{padding:0 10px 12px}
+    .shop-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 10px 9px}
+    .shop-tab{border:0;border-radius:11px;padding:8px;background:#f2e2c8;color:#8d6652;font-size:11px;font-weight:900;cursor:pointer}
+    .shop-tab.active{background:#bc1630;color:#fff;box-shadow:0 5px 12px rgba(170,13,37,.2)}
     .ticket-choice{border:0;width:100%;text-align:left;cursor:pointer;border-radius:16px;padding:11px 10px;background:transparent;display:grid;grid-template-columns:44px 1fr auto;align-items:center;gap:9px;color:var(--ink);transition:.2s;margin-bottom:3px;position:relative}
     .ticket-choice:hover{background:#fff}
     .ticket-choice.active{background:#fff;box-shadow:0 7px 22px rgba(92,28,20,.11)}
@@ -124,11 +129,17 @@
     .cooldown{font-size:11px;color:#666;text-align:center;min-height:20px;padding:0 20px 4px}
     .rule-btn{border:0;background:#fff0c9;color:#9c2735;border-radius:12px;padding:7px 10px;font-size:11px;font-weight:900;cursor:pointer}
     /* Preview */
-    .preview{text-align:center;padding:30px 20px}
-    .preview h3{font-size:22px;margin:0 0 6px}
-    .preview .preview-icon{font-size:60px;margin-bottom:10px}
-    .preview .preview-rule{font-size:13px;color:#866756;line-height:1.7;max-width:400px;margin:auto}
-    .preview .preview-cost{display:inline-block;margin-top:14px;padding:7px 18px;border-radius:12px;background:#fde8e8;color:#c7102c;font-weight:900}
+    .preview{min-height:520px;width:min(560px,100%);margin:auto;border-radius:26px;padding:34px;background:radial-gradient(circle at 85% 15%,rgba(255,214,90,.4),transparent 22%),linear-gradient(145deg,#fffaf0,#ffe6b0);box-shadow:0 18px 38px rgba(107,42,15,.15);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+    .preview h3{font-size:30px;margin:20px 0 7px}
+    .preview .preview-icon{width:96px;height:96px;border-radius:30px;display:grid;place-items:center;font-size:51px;background:white;box-shadow:0 14px 30px rgba(102,45,20,.13);transform:rotate(-3deg)}
+    .preview .preview-rule{max-width:390px;color:#805d4d;font-size:14px;line-height:1.7;margin:0}
+    .preview-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;margin:22px 0}
+    .preview-step{background:rgba(255,255,255,.72);border:1px solid #f0d7ad;border-radius:15px;padding:11px 7px;font-size:11px;color:#75513e}
+    .preview-step b{display:block;color:#b81731;font-size:16px;margin-bottom:4px}
+    .preview .preview-cost{font-weight:1000;color:#a6142d;background:#ffd662;border-radius:999px;padding:9px 18px}
+    .preview-note{font-size:10px;color:#a6816f;margin-top:12px}
+    .rank-sort{border:0;background:#f0dfc7;color:#7a4e35;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:10px;font-weight:700;margin-left:4px}
+    .rank-sort.active{background:#d71936;color:#fff}
     /* Arcade */
     .arcade{min-height:500px;margin:auto;width:min(540px,100%);border-radius:24px;padding:22px;background:linear-gradient(160deg,#28213f,#151124);color:white;box-shadow:0 18px 35px rgba(45,15,50,.28);text-align:center}
     .arcade h2{margin:4px 0 7px;font-size:25px}.arcade-sub{font-size:11px;color:#cbbede;margin-bottom:18px}
@@ -246,10 +257,12 @@
     @media(max-width:780px){
       .app{padding:9px 10px 22px}.topbar{min-height:62px;padding-bottom:9px}.brand{min-width:0;flex:1}.brand-seal{width:44px;height:44px;border-radius:14px;font-size:23px}
       .brand h1{font-size:22px}.brand small{display:none}.ticker{display:none}.pill{height:40px;padding:0 10px}.pill b{font-size:16px}.level-pill{display:none}
-      .layout{display:block}.left-panel{margin-bottom:10px}.left-panel .panel-title,.mission{display:none}.shop{display:flex;overflow-x:auto;padding:8px;gap:6px;scrollbar-width:none}
+      .gift-btn{width:40px;justify-content:center}.gift-btn span{display:none}
+      .layout{display:block}.left-panel{margin-bottom:10px}.left-panel .panel-title,.mission{display:none}.shop-tabs{padding:8px 8px 0}.shop{display:flex;overflow-x:auto;padding:8px;gap:6px;scrollbar-width:none}
       .right-panel{display:block!important;margin-top:16px}
       .ticket-choice{min-width:117px;display:flex;flex-direction:column;text-align:center;padding:8px 6px;margin:0;gap:4px}.ticket-choice.active:after{right:auto;bottom:-8px;width:28px;height:4px;border-radius:4px 4px 0 0}
       .choice-icon{width:38px;height:38px;font-size:20px}.choice-desc{display:none}.choice-cost{padding:2px 6px}.game-shell{min-height:0}
+      .preview{min-height:430px;padding:24px 16px}.preview-steps{gap:5px}.preview-step{padding:9px 4px}
       .game-head{padding:14px 13px 8px}.ticket-stage{padding:3px 10px 12px}.scratch-zone{padding:15px 13px 17px}.ticket-banner{padding:14px 18px;min-height:103px}
       .ticket-logo h2{font-size:28px}.scratch-grid{gap:7px}.scratch-cell{min-height:86px}.reveal .symbol{font-size:25px}
       .xiangfeng-ticket .ticket-banner{min-height:125px}.xiangfeng-ticket .ticket-logo h2{font-size:31px}.xiangfeng-ticket .scratch-zone{margin:8px;padding:9px}.xiangfeng-grid{gap:3px}.xiangfeng-grid .scratch-cell{min-height:60px}.xiangfeng-grid .reveal .symbol{font-size:19px}
@@ -280,6 +293,7 @@
         <button class="pill player-pill" id="playerBtn"><span id="playerName">玩家</span></button>
         <div class="pill level-pill">⭐ <span>等级</span><b id="topLevel">1</b></div>
         <div class="pill">🪙 <span>爽币</span><b id="coins">200</b></div>
+        <button class="pill gift-btn" id="giftBtn">🎁 <span id="giftText">每日好运金</span></button>
         <button class="pill icon-btn" id="rankBtn" aria-label="排行榜">🏆</button>
         <button class="pill icon-btn" id="soundBtn" aria-label="音效">🔊</button>
         <button class="pill icon-btn" id="adminBtn" aria-label="管理" style="font-size:11px;width:auto;padding:0 10px">⚙</button>
@@ -287,7 +301,8 @@
     </header>
     <div class="layout">
       <aside class="panel left-panel">
-        <div class="panel-title">好运票铺 <small>选一张开刮</small></div>
+        <div class="panel-title">好运游乐场 <small>先看规则再开玩</small></div>
+        <div class="shop-tabs"><button class="shop-tab active" data-category="彩票">即开票</button><button class="shop-tab" data-category="街机">小游戏</button></div>
         <div class="shop" id="shop"></div>
         <div class="mission">
           <div class="mission-head">今日挑战</div><strong>集齐全部玩法图鉴</strong>
@@ -327,7 +342,7 @@
         <div class="panel-title">中奖记录 <small id="recordsInfo">最近 10 条</small></div>
         <div class="record-list" id="records"></div>
         <div class="page-controls" id="recordsPages"></div>
-        <div class="panel-title">全服排行 <small><button id="rankSortLevel" style="border:0;background:#d71936;color:#fff;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:10px;font-weight:700;margin-right:4px" onclick="window._switchRank('level')">等级</button><button id="rankSortCoins" style="border:0;background:#f0dfc7;color:#7a4e35;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:10px;font-weight:700" onclick="window._switchRank('coins')">金币</button></small></div>
+        <div class="panel-title">全服排行 <small><button id="rankSortLevel" class="rank-sort active" data-rank-sort="level">等级</button><button id="rankSortCoins" class="rank-sort" data-rank-sort="coins">爽币</button></small></div>
         <div class="rank-list" id="rankList"></div>
         <div class="page-controls" id="rankPages"></div>
       </aside>
@@ -366,6 +381,9 @@
     {id:'ssq',name:'双色球',icon:'🔴',cost:2,color:'#ff6b6b',banner:'linear-gradient(135deg,#c0392b,#e74c3c)',rule:'系统自动选号，开奖匹配红蓝球',kind:'ssq',cat:'彩票'},
     {id:'blackjack',name:'21点',icon:'🃏',cost:20,color:'#2ecc71',banner:'linear-gradient(135deg,#1a7a3a,#0d4f1e)',rule:'庄家发牌，要牌停牌，接近21点即赢',kind:'blackjack',cat:'街机'},
     {id:'dice',name:'猜大小',icon:'🎲',cost:10,color:'#e74c3c',banner:'linear-gradient(135deg,#c0392b,#8b0000)',rule:'三颗骰子，猜大(11-17)猜小(4-10)，猜中赢奖',kind:'dice',cat:'街机'},
+    {id:'twentyfour',name:'24点挑战',icon:'🧠',cost:10,color:'#ffb6d8',banner:'linear-gradient(135deg,#d63588,#76215b)',rule:'四张牌各用一次，用加减乘除凑出 24',kind:'twentyfour',cat:'街机'},
+    {id:'pusher',name:'推币机',icon:'🪙',cost:10,color:'#9ad8ff',banner:'linear-gradient(135deg,#168ec5,#2454a3)',rule:'瞄准币堆投币，落点会影响本局结算',kind:'pusher',cat:'街机'},
+    {id:'claw',name:'抓娃娃机',icon:'🕹️',cost:20,color:'#b8f29a',banner:'linear-gradient(135deg,#45a84d,#176b62)',rule:'移动机械爪，选择一只娃娃尝试抓取',kind:'claw',cat:'街机'},
     {id:'slots',name:'水果机',icon:'🍒',cost:5,color:'#ff9ff3',banner:'linear-gradient(135deg,#5f27cd,#341f97)',rule:'三列转轮旋转，图案匹配即中奖',kind:'slots',cat:'街机'},
     {id:'pinball',name:'弹珠台',icon:'🔮',cost:8,color:'#48dbfb',banner:'linear-gradient(135deg,#0abde3,#0984e3)',rule:'发射弹珠落入奖池，不同奖池不同奖金',kind:'pinball',cat:'街机'},
     {id:'wheel',name:'幸运转盘',icon:'🎡',cost:10,color:'#feca57',banner:'linear-gradient(135deg,#ff9f43,#ee5a24)',rule:'旋转大转盘，指针停在哪个区域就得哪个奖',kind:'wheel',cat:'街机'},
@@ -376,10 +394,13 @@
     jinyu:['刮开九宫格。出现 3 个相同宝物，获得该组宝物标示的奖金。','票价 20；回本 20；小奖 40；中奖 100；大奖 200；最高奖可达 100 万！'],
     ten:['先刮幸运数字和倍数，再刮号码区。号码匹配时，奖金乘以本票倍数。','票价 30；回本 30；小奖 60；中奖 150；大奖 300；最高奖可达 100 万！'],
     koi:['刮开好运池。找到一条锦鲤获得奖金；最高奖会出现双锦鲤并翻倍。','票价 50；回本 50；小奖 100；中奖 250；大奖 500；最高奖可达 100 万！'],
-    baccarat:['系统模拟庄家发牌，闲家与庄家两张牌比大小，个位数更大者赢。','票价 25；回本 25；小奖 50；中奖 125；大奖 250；最高奖可达 100 万！'],
+    baccarat:['开局后先押“闲”“庄”或“和”，提交选择后服务器才揭晓双方牌面。点数取个位，更大者赢。','票价 25；押闲或庄猜中返 50；押和猜中返 200。'],
     ssq:['系统自动选 6 个红球 + 1 个蓝球。开奖后根据匹配球数获得奖金。','票价 2；回本 2；小奖 4；中奖 10；大奖 20；最高奖可达 100 万！'],
     blackjack:['庄家发 2 张牌，你看牌后选择"要牌"或"停牌"。接近 21 点但不能超过，超过则爆牌。','票价 20；回本 20；小奖 40；中奖 100；大奖 200；最高奖可达 100 万！'],
-    dice:['三颗骰子，猜"大"(11-17)或"小"(4-10)。猜中即赢，猜错不中。出现豹子(三个相同)则大小通杀。','票价 10；回本 10；小奖 20；中奖 50；大奖 100；最高奖可达 100 万！'],
+    dice:['三颗骰子，先猜“大”(11-17)或“小”(4-10)，提交后服务器才揭晓骰子。豹子(三个相同)时大小都不中。','票价 10；猜中返 20，猜错为 0。'],
+    twentyfour:['四张牌必须各用一次，只能使用加、减、乘、除和括号，把结果算成 24。','票价 10；答对返 50，答错为 0。'],
+    pusher:['拖动准星选择投币位置。投币落点越接近服务器本局生成的有效推动区，越可能拿到本局奖池奖金。','票价 10；未中奖 0；回本和大奖按通用奖池结算。'],
+    claw:['拖动机械爪瞄准一只娃娃，再按抓取。中奖娃娃由服务器预先密封生成，选择提交后才结算。','票价 20；抓空为 0；抓中按通用奖池结算。'],
     slots:['三列转轮旋转后停止。三个相同图案中大奖，两个相同中小奖。','票价 5；回本 5；小奖 10；中奖 25；大奖 50；最高奖可达 100 万！'],
     pinball:['弹珠从顶部下落经过随机碰撞落入底部奖池。不同奖池奖金不同。','票价 8；回本 8；小奖 16；中奖 40；大奖 80；最高奖可达 100 万！'],
     wheel:['10格转盘旋转，指针最终指向某个区域即为该区域奖金。','票价 10；回本 10；小奖 20；中奖 50；大奖 100；最高奖可达 100 万！'],
@@ -387,7 +408,7 @@
   const TREASURES = [['金元宝','💰'],['翡翠','💎'],['如意','🪄'],['红包','🧧'],['铜钱','🪙']];
   const TOKEN_KEY = 'gua-shuang-player-token';
   let authToken = localStorage.getItem(TOKEN_KEY) || '';
-  let state = {coins:200,xp:0,level:1,played:0,wins:0,best:0,streak:0,current:'xiangfeng',records:[],seen:[],nickname:'',playerId:''};
+  let state = {coins:200,xp:0,level:1,played:0,wins:0,best:0,streak:0,current:'xiangfeng',records:[],seen:[],nickname:'',playerId:'',dailyGiftAvailable:false};
   let leaderboard = [], leaderboardPage = 1, leaderboardPages = 1, rankSort = 'level';
   let recordsPage = 1, recordsPages = 1;
   let current = TYPES.find(t => t.id === state.current) || TYPES[0];
@@ -395,6 +416,7 @@
   let fxParticles = [], fxFrame = 0;
   let adminToken = '', cooldownTimer = null;
   let reelAnims = [];
+  let activeCategory = '彩票';
 
   function formatPrize(n) {
     if (n >= 1000000) return (n / 10000) + '万';
@@ -458,14 +480,12 @@
   }
 
   function renderShop() {
-    let lastCat = '';
-    $('#shop').innerHTML = TYPES.map(t => {
-      let catLabel = '';
-      if (t.cat !== lastCat) { catLabel = `<div style="font-size:10px;color:#b3937e;font-weight:900;padding:8px 10px 2px;letter-spacing:2px">${t.cat}</div>`; lastCat = t.cat; }
-      return `${catLabel}<button class="ticket-choice ${t.id === current.id ? 'active' : ''}" data-id="${t.id}" style="--choice:${t.color}55">
+    $('#shop').innerHTML = TYPES.filter(t => t.cat === activeCategory && t.enabled !== false).map(t => {
+      return `<button class="ticket-choice ${t.id === current.id ? 'active' : ''}" data-id="${t.id}" style="--choice:${t.color}55">
         <span class="choice-icon">${t.icon}</span><span><div class="choice-name">${t.name}</div><div class="choice-desc">${t.rule.slice(0, 14)}...</div></span><span class="choice-cost">${t.cost} 币</span>
       </button>`;
     }).join('');
+    document.querySelectorAll('.shop-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.category === activeCategory));
   }
 
   function renderChrome() {
@@ -479,6 +499,8 @@
     $('#rateStat').textContent = state.played ? Math.round(state.wins / state.played * 100) + '%' : '0%';
     $('#streak').textContent = state.streak + ' 连刮';
     $('#luck').textContent = Math.min(20, state.streak * 2);
+    $('#giftBtn').disabled = !state.dailyGiftAvailable;
+    $('#giftText').textContent = state.dailyGiftAvailable ? '领取 80' : '今日已领';
     const need = state.level * 100, base = (state.level - 1) * 100, within = state.xp - base;
     const names = ['刮票新手', '好运熟客', '锦鲤体质', '欧气达人', '鸿运之王', '财富之神'];
     $('#levelName').textContent = names[Math.min(names.length - 1, state.level - 1)];
@@ -532,6 +554,25 @@
     } catch (e) { console.error('loadLeaderboard error:', e); }
   }
 
+  async function loadCatalog() {
+    try {
+      const data = await api('/api/catalog');
+      for (const remote of data.games || []) {
+        const game = TYPES.find(t => t.id === remote.id);
+        if (game) {
+          game.cost = remote.cost;
+          game.enabled = remote.enabled;
+        }
+      }
+      if (current.enabled === false) current = TYPES.find(t => t.enabled !== false) || current;
+      activeCategory = current.cat;
+      renderShop();
+      showPreview();
+    } catch (e) {
+      console.error('loadCatalog error:', e);
+    }
+  }
+
   async function loadRecords(page = 1) {
     if (!authToken) return;
     try {
@@ -554,11 +595,18 @@
     $('#newTicket').style.display = '';
     $('#quickScratch').disabled = true;
     $('#newTicket').disabled = false;
+    const info = RULES[current.id] || [current.rule, ''];
     $('#stage').innerHTML = `<div class="preview">
       <div class="preview-icon">${current.icon}</div>
       <h3>${current.name}</h3>
       <p class="preview-rule">${current.rule}</p>
+      <div class="preview-steps">
+        <div class="preview-step"><b>1</b>阅读玩法规则</div>
+        <div class="preview-step"><b>2</b>支付爽币开局</div>
+        <div class="preview-step"><b>3</b>完成操作结算</div>
+      </div>
       <div class="preview-cost">${current.cost} 爽币 / 张</div>
+      <div class="preview-note">${escapeHtml(info[1])}</div>
     </div>`;
   }
 
@@ -583,7 +631,7 @@
       return;
     }
     applyServer(response);
-    if (response.gift) toast('爽币不足，系统赠送 100 爽币');
+    if (response.cost) current.cost = response.cost;
     ticket = { ...response.ticket, id: response.ticketId, type: current, revealed: 0, done: false };
     scratchers = [];
     $('#gameIcon').textContent = current.icon;
@@ -632,11 +680,92 @@
     $('#newTicket').style.display = 'none';
     if (ticket.mode === 'blackjack') renderBlackjack();
     else if (ticket.mode === 'dice') renderDice();
+    else if (ticket.mode === 'twentyfour') render24();
+    else if (ticket.mode === 'pusher') renderPusher();
+    else if (ticket.mode === 'claw') renderClaw();
     else if (ticket.mode === 'ssq') renderSSQ();
     else if (ticket.mode === 'baccarat') renderBaccarat();
     else if (ticket.mode === 'slots') renderSlots();
     else if (ticket.mode === 'pinball') renderPinball();
     else if (ticket.mode === 'wheel') renderWheel();
+  }
+
+  function render24() {
+    $('#stage').innerHTML = `<div class="arcade"><h2>🧠 24点挑战</h2>
+      <div class="arcade-sub">四张牌各用一次，用 + - × ÷ 和括号凑出 24</div>
+      <div class="cards24">${ticket.cards.map(card => `<div class="card24"><div class="card-val">${card.display}</div><div class="card-suit">${card.suit}</div></div>`).join('')}</div>
+      <input id="answer24" class="calc-display" inputmode="text" placeholder="例如：(6-1)×5-1" style="width:min(390px,90%);border:2px solid #8f7aaa;padding:14px">
+      <button class="calc-btn submit" id="submit24" style="margin-top:12px">提交答案</button>
+      <div id="result" style="margin-top:14px;font-weight:900"></div></div>`;
+    $('#submit24').addEventListener('click', async () => {
+      const answer = $('#answer24').value.replaceAll('×', '*').replaceAll('÷', '/').trim();
+      if (!answer) return toast('先写出你的算式');
+      $('#submit24').disabled = true;
+      const response = await finishTicket({answer});
+      if (response && response.validationMessage) $('#result').textContent = response.validationMessage;
+    });
+  }
+
+  function renderPusher() {
+    let dropX = .5, pushing = false;
+    $('#stage').innerHTML = `<div class="arcade"><h2>🪙 好运推币机</h2>
+      <div class="arcade-sub">观察币堆，拖动准星后投币</div>
+      <canvas class="pusher-canvas" id="pusherCv" width="540" height="340"></canvas>
+      <div class="pusher-controls"><input type="range" class="pusher-slider" id="pusherSlider" min="5" max="95" value="50"><button class="pusher-btn" id="pusherDrop">🪙 投币</button></div>
+      <div id="result" style="margin-top:12px;font-weight:900"></div></div>`;
+    const canvas = $('#pusherCv'), ctx = canvas.getContext('2d');
+    let progress = 0;
+    function draw() {
+      const {width:w,height:h} = canvas;
+      ctx.clearRect(0,0,w,h);
+      const bg=ctx.createLinearGradient(0,0,0,h); bg.addColorStop(0,'#18223d'); bg.addColorStop(1,'#0b1020'); ctx.fillStyle=bg; ctx.fillRect(0,0,w,h);
+      ctx.fillStyle='#78624d'; ctx.fillRect(0,h*.72,w,h*.28);
+      (ticket.coins||[]).forEach(coin => {
+        const x=coin.x*w, y=(coin.y+progress*(Math.abs(coin.x-dropX)<.18?.16:0))*h*.72;
+        ctx.beginPath(); ctx.arc(x,y,10*coin.size,0,Math.PI*2); ctx.fillStyle='#ffd34e'; ctx.fill(); ctx.strokeStyle='#a96c08'; ctx.stroke();
+      });
+      ctx.fillStyle='#d7dce5'; ctx.fillRect(dropX*w-50,h*(.57+progress*.1),100,28);
+      ctx.fillStyle='#ff4d5e'; ctx.beginPath(); ctx.moveTo(dropX*w,12); ctx.lineTo(dropX*w-8,29); ctx.lineTo(dropX*w+8,29); ctx.fill();
+    }
+    draw();
+    $('#pusherSlider').addEventListener('input', event => { dropX=Number(event.target.value)/100; draw(); });
+    $('#pusherDrop').addEventListener('click', () => {
+      if (pushing) return;
+      pushing=true; $('#pusherDrop').disabled=true;
+      const start=performance.now();
+      function animate(now) {
+        progress=Math.min(1,(now-start)/850); draw();
+        if (progress<1) requestAnimationFrame(animate);
+        else finishTicket({dropX});
+      }
+      requestAnimationFrame(animate);
+    });
+  }
+
+  function renderClaw() {
+    let clawX=.5, clawY=0, closed=false, chosen=-1, moving=false;
+    const toys=ticket.toys||[];
+    $('#stage').innerHTML = `<div class="arcade"><h2>🕹️ 好运抓娃娃</h2>
+      <div class="arcade-sub">瞄准你最想要的娃娃，一次定胜负</div>
+      <canvas class="claw-canvas" id="clawCv" width="540" height="340"></canvas>
+      <div class="claw-controls"><input type="range" class="claw-slider" id="clawSlider" min="5" max="95" value="50"><button class="claw-btn" id="clawGrab">🦾 抓取</button></div>
+      <div id="result" style="margin-top:12px;font-weight:900"></div></div>`;
+    const canvas=$('#clawCv'),ctx=canvas.getContext('2d');
+    function draw(){
+      const {width:w,height:h}=canvas; ctx.clearRect(0,0,w,h); const bg=ctx.createLinearGradient(0,0,0,h); bg.addColorStop(0,'#15284a'); bg.addColorStop(1,'#301c42');ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
+      ctx.fillStyle='#23162d';ctx.fillRect(0,h*.8,w,h*.2);
+      toys.forEach((toy,index)=>{ctx.font=`${40*toy.size}px sans-serif`;ctx.textAlign='center';ctx.fillText(toy.emoji,toy.x*w,h*.77);ctx.fillStyle='#ddd';ctx.font='11px sans-serif';ctx.fillText(toy.name,toy.x*w,h*.84);if(index===chosen){ctx.strokeStyle='#ffd54a';ctx.lineWidth=3;ctx.strokeRect(toy.x*w-30,h*.58,60,75);}});
+      const x=clawX*w,y=48+clawY;ctx.fillStyle='#b8c1cc';ctx.fillRect(x-3,0,6,y);ctx.strokeStyle='#e5e7eb';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+(closed?-10:-24),y+34);ctx.moveTo(x,y);ctx.lineTo(x+(closed?10:24),y+34);ctx.stroke();
+    }
+    draw();
+    $('#clawSlider').addEventListener('input',event=>{clawX=Number(event.target.value)/100;draw();});
+    $('#clawGrab').addEventListener('click',()=>{
+      if(moving)return;moving=true;$('#clawGrab').disabled=true;
+      chosen=toys.reduce((best,toy,index)=>Math.abs(toy.x-clawX)<Math.abs(toys[best].x-clawX)?index:best,0);
+      const start=performance.now();
+      function animate(now){const t=(now-start)/1400;if(t<.45){clawY=t/.45*170;}else if(t<.62){clawY=170;closed=true;}else if(t<1){clawY=(1-t)/.38*170;}else{clawY=0;draw();finishTicket({slot:chosen});return;}draw();requestAnimationFrame(animate);}
+      requestAnimationFrame(animate);
+    });
   }
 
   // ---- Blackjack (21点) ----
@@ -652,7 +781,7 @@
         <div style="color:#cbbede;font-size:13px;margin-top:5px">点数: ${hideSecond ? '?' : val}</div></div>`;
     };
 
-    let pH = ticket.playerHand, dH = ticket.dealerHand;
+    let pH = ticket.playerHand, dH = [ticket.dealerUpCard];
     let pV = hv(pH);
 
     function render() {
@@ -685,7 +814,7 @@
             // Still playing - update cards
             pH = resp.playerHand;
             pV = resp.playerVal;
-            dH = resp.dealerHand;
+            dH = [resp.dealerUpCard];
             $('#bjHands').innerHTML = handHtml(pH, '你的牌', pV, false) + handHtml(dH, '庄家', '?', true);
             hitBtn.disabled = false; standBtn.disabled = false;
           } else {
@@ -754,14 +883,12 @@
     }
     async function bet(choice) {
       $('#diceBig').disabled = true; $('#diceSmall').disabled = true;
-      showDice(ticket.dice);
       try {
-        await finishTicket({ bet: choice });
+        const response = await finishTicket({ bet: choice });
+        showDice(response.dice);
         const resultDiv = $('#diceResult');
-        const total = ticket.dice.reduce((a,b)=>a+b,0);
-        const isTriple = ticket.dice[0] === ticket.dice[1] && ticket.dice[1] === ticket.dice[2];
-        if (isTriple) resultDiv.textContent = `🎲 ${total}点 豹子！通杀`;
-        else resultDiv.textContent = `🎲 ${total}点 (${total >= 11 ? '大' : '小'})`;
+        if (response.isTriple) resultDiv.textContent = `🎲 ${response.total}点 豹子！通杀`;
+        else resultDiv.textContent = `🎲 ${response.total}点 (${response.total >= 11 ? '大' : '小'})`;
         setTimeout(() => { if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 2000);
       } catch (e) { $('#diceBig').disabled = false; $('#diceSmall').disabled = false; }
     }
@@ -792,18 +919,24 @@
   function renderBaccarat() {
     $('#stage').innerHTML = `<div class="arcade"><h2>🃏 百家乐</h2><div class="arcade-sub">庄家发牌，比大小</div>
       <div class="baccarat-cards">
-        <div class="baccarat-hand"><h4>闲家</h4>${ticket.playerHand.map(n => `<div class="card">${n}</div>`).join('')}<div style="color:#cbbede;font-size:13px;margin-top:5px">点数: ${ticket.playerTotal}</div></div>
-        <div class="baccarat-hand"><h4>庄家</h4>${ticket.bankerHand.map(n => `<div class="card">${n}</div>`).join('')}<div style="color:#cbbede;font-size:13px;margin-top:5px">点数: ${ticket.bankerTotal}</div></div>
+        <div class="baccarat-hand"><h4>闲家</h4><div class="card">?</div><div class="card">?</div></div>
+        <div class="baccarat-hand"><h4>庄家</h4><div class="card">?</div><div class="card">?</div></div>
       </div>
-      <div style="font-size:22px;font-weight:1000;color:#ffd65a;margin:12px 0">结果: ${ticket.result}赢</div>
-      <button class="pusher-btn" id="baccaratFinish">确认结果</button></div>`;
-    $('#baccaratFinish').addEventListener('click', async () => {
-      $('#baccaratFinish').disabled = true;
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="pusher-btn baccarat-bet" data-bet="闲">押闲 · 2倍</button>
+        <button class="pusher-btn baccarat-bet" data-bet="庄">押庄 · 2倍</button>
+        <button class="pusher-btn baccarat-bet" data-bet="和">押和 · 8倍</button>
+      </div><div id="baccaratResult" style="font-size:18px;font-weight:1000;color:#ffd65a;margin:14px 0"></div></div>`;
+    document.querySelectorAll('.baccarat-bet').forEach(btn => btn.addEventListener('click', async () => {
+      document.querySelectorAll('.baccarat-bet').forEach(b => b.disabled = true);
       try {
-        await finishTicket();
-        setTimeout(() => { if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 1500);
-      } catch (e) {}
-    });
+        const response = await finishTicket({ bet: btn.dataset.bet });
+        const hand = (cards, label, total) => `<div class="baccarat-hand"><h4>${label}</h4>${cards.map(n => `<div class="card">${n}</div>`).join('')}<div style="color:#cbbede;font-size:13px;margin-top:5px">点数: ${total}</div></div>`;
+        document.querySelector('.baccarat-cards').innerHTML = hand(response.playerHand, '闲家', response.playerTotal) + hand(response.bankerHand, '庄家', response.bankerTotal);
+        $('#baccaratResult').textContent = `结果：${response.result}赢`;
+        setTimeout(showPreview, 2200);
+      } catch (e) { document.querySelectorAll('.baccarat-bet').forEach(b => b.disabled = false); }
+    }));
   }
 
   // ---- Slots (水果机) ----
@@ -985,6 +1118,7 @@
 
     $('#pinballLaunch').addEventListener('click', () => {
       $('#pinballLaunch').disabled = true;
+      const targetX = (ticket.targetSlot + 0.5) / slots.length;
       bx = 0.45 + Math.random() * 0.1;
       by = 0.03;
       vx = (Math.random() - 0.5) * 0.02;
@@ -1023,14 +1157,16 @@
           }
         }
 
+        if (by > 0.72) vx += (targetX - bx) * 0.012;
+
         // Reached bottom
         if (by >= 0.90) {
+          bx = targetX;
           drawBoard();
           drawBall();
           cancelAnimationFrame(frameId);
           // Determine which slot
-          const slotIdx = Math.min(slots.length - 1, Math.floor(bx * slots.length));
-          finishPinball(slotIdx);
+          finishPinball(ticket.targetSlot);
           return;
         }
 
@@ -1189,6 +1325,7 @@
     if (state.level > oldLevel) toast(`升级啦！现在是 ${state.level} 级，奖励 50 爽币`);
     if (response.challengeReward) toast('今日挑战完成，奖励 100 爽币！');
     loadLeaderboard(leaderboardPage);
+    return response;
   }
 
   // ---- FX ----
@@ -1233,9 +1370,9 @@
     ];
     const fieldsHtml = fields.map(f => `<div class="admin-field">
       <label>${f.label}</label>
-      <input type="range" min="0" max="${f.key.includes('pity') ? '0.1' : '1'}" step="${f.key.includes('pity') ? '0.001' : f.key === 'legend' || f.key === 'diamond' ? '0.00001' : '0.0001'}" value="${config[f.key] || f.def}" data-key="${f.key}" oninput="this.nextElementSibling.value=this.value">
-      <input type="number" value="${config[f.key] || f.def}" data-key-num="${f.key}" step="any" onchange="this.previousElementSibling.value=this.value">
-      <span>${(config[f.key] || f.def).toFixed(f.key === 'legend' || f.key === 'diamond' ? 5 : 4)}</span>
+      <input type="range" min="0" max="${f.key.includes('pity') ? '0.1' : '1'}" step="${f.key.includes('pity') ? '0.001' : f.key === 'legend' || f.key === 'diamond' ? '0.00001' : '0.0001'}" value="${config[f.key] ?? f.def}" data-key="${f.key}">
+      <input type="number" value="${config[f.key] ?? f.def}" data-key-num="${f.key}" step="any">
+      <span>${(config[f.key] ?? f.def).toFixed(f.key === 'legend' || f.key === 'diamond' ? 5 : 4)}</span>
     </div>`).join('');
 
     // Per-game config with win rate
@@ -1243,13 +1380,13 @@
       const ek = `game_${t.id}_enabled`;
       const ck = `game_${t.id}_cost`;
       const wk = `game_${t.id}_winrate`;
-      const enabled = config[ek] !== '0';
+      const enabled = !['0', '0.0', 0].includes(config[ek]);
       const cost = config[ck] !== undefined ? parseInt(config[ck]) : t.cost;
       const winrate = config[wk] !== undefined ? parseFloat(config[wk]) : '';
       return `<div class="admin-field" style="flex-wrap:wrap">
         <label style="min-width:100px">${t.icon} ${t.name}</label>
         <input type="hidden" data-key="${ek}" value="${enabled ? '1' : '0'}" id="ek_${t.id}">
-        <button class="page-btn" id="tg_${t.id}" style="${enabled ? 'background:#22c55e;color:white' : 'background:#888;color:white'};min-width:50px" onclick="var el=document.getElementById('tg_${t.id}');var inp=document.getElementById('ek_${t.id}');if(inp.value==='1'){inp.value='0';el.style.background='#888';el.textContent='OFF'}else{inp.value='1';el.style.background='#22c55e';el.textContent='ON'}">${enabled ? 'ON' : 'OFF'}</button>
+        <button class="page-btn" id="tg_${t.id}" data-game-toggle="${t.id}" style="${enabled ? 'background:#22c55e;color:white' : 'background:#888;color:white'};min-width:50px">${enabled ? 'ON' : 'OFF'}</button>
         <span style="font-size:10px">票价</span><input type="number" value="${cost}" data-key="${ck}" style="width:55px;border:1px solid #594d7a;border-radius:8px;padding:3px 5px;background:#3b3052;color:white;text-align:center;font-weight:700;font-size:12px">
         <span style="font-size:10px">中奖率</span><input type="number" value="${winrate}" data-key="${wk}" placeholder="全局" style="width:55px;border:1px solid #594d7a;border-radius:8px;padding:3px 5px;background:#3b3052;color:white;text-align:center;font-weight:700;font-size:12px" step="0.01" min="0" max="1">
       </div>`;
@@ -1312,8 +1449,8 @@
                 <div style="font-size:10px;color:#9b8ab8">${u.playerId} · Lv${u.level} · 🪙${u.coins} · 倍率${u.rateMultiplier||1}x</div>
               </div>
               <span style="display:flex;gap:4px">
-                <button style="background:#22c55e;color:white;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;font-weight:700" onclick="window._giveCoins('${u.playerId}')">+币</button>
-                <button style="background:#f39c12;color:white;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;font-weight:700" onclick="window._setRate('${u.playerId}','${u.rateMultiplier||1}')">倍率</button>
+                <button data-user-coins="${u.playerId}" style="background:#22c55e;color:white;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;font-weight:700">+币</button>
+                <button data-user-rate="${u.playerId}" data-current-rate="${u.rateMultiplier||1}" style="background:#f39c12;color:white;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;font-weight:700">倍率</button>
               </span>
             </div>`).join('');
       } catch (e) { $('#userSearchResults').innerHTML = '<div style="color:#e74c3c;font-size:12px;padding:10px">搜索失败: '+escapeHtml(e.message)+'</div>'; }
@@ -1326,8 +1463,7 @@
     // Also auto-load top users
     doSearch('');
 
-    // Global helpers for user management buttons
-    window._giveCoins = async function(pid) {
+    async function giveCoins(pid) {
       const amount = parseInt(prompt(`给 ${pid} 增加爽币数量:`, '100'));
       if (!amount || isNaN(amount)) return;
       try {
@@ -1335,8 +1471,8 @@
         toast(`${data.player.nickname} 爽币 ${amount > 0 ? '+' : ''}${amount}，当前 ${data.player.coins}`);
         doSearch('');
       } catch (e) { toast('操作失败: ' + e.message); }
-    };
-    window._setRate = async function(pid, currentRate) {
+    }
+    async function setRate(pid, currentRate) {
       const rate = parseFloat(prompt(`${pid} 当前中奖倍率 ${currentRate}x，输入新倍率 (0-10):`, currentRate));
       if (isNaN(rate)) return;
       try {
@@ -1344,7 +1480,33 @@
         toast(`${pid} 中奖倍率已设为 ${rate}x`);
         doSearch('');
       } catch (e) { toast('操作失败: ' + e.message); }
-    };
+    }
+    document.querySelectorAll('[data-game-toggle]').forEach(button => button.addEventListener('click', () => {
+      const gameId = button.dataset.gameToggle;
+      const input = document.getElementById(`ek_${gameId}`);
+      const enabled = input.value !== '1';
+      input.value = enabled ? '1' : '0';
+      button.style.background = enabled ? '#22c55e' : '#888';
+      button.textContent = enabled ? 'ON' : 'OFF';
+    }));
+    document.querySelectorAll('.admin-field input[type="range"][data-key]').forEach(slider => {
+      slider.addEventListener('input', () => {
+        const number = slider.parentElement.querySelector(`[data-key-num="${slider.dataset.key}"]`);
+        if (number) number.value = slider.value;
+      });
+    });
+    document.querySelectorAll('.admin-field input[data-key-num]').forEach(number => {
+      number.addEventListener('change', () => {
+        const slider = number.parentElement.querySelector(`input[type="range"][data-key="${number.dataset.keyNum}"]`);
+        if (slider) slider.value = number.value;
+      });
+    });
+    $('#userSearchResults').addEventListener('click', e => {
+      const coinButton = e.target.closest('[data-user-coins]');
+      const rateButton = e.target.closest('[data-user-rate]');
+      if (coinButton) giveCoins(coinButton.dataset.userCoins);
+      if (rateButton) setRate(rateButton.dataset.userRate, rateButton.dataset.currentRate);
+    });
   }
 
   // ---- Event bindings ----
@@ -1357,26 +1519,48 @@
     showPreview(); // Only preview, no purchase
     sfx('reveal');
   });
+  document.querySelector('.shop-tabs').addEventListener('click', e => {
+    const tab = e.target.closest('[data-category]');
+    if (!tab) return;
+    activeCategory = tab.dataset.category;
+    const first = TYPES.find(t => t.cat === activeCategory);
+    if (first && current.cat !== activeCategory) current = first;
+    renderShop();
+    showPreview();
+  });
   $('#newTicket').addEventListener('click', () => { ensureAudio(); renderTicket(); });
   $('#quickScratch').addEventListener('click', () => { scratchers.forEach((s, i) => setTimeout(s.reveal, i * 45)); $('#quickScratch').disabled = true; });
   $('#soundBtn').addEventListener('click', () => { soundOn = !soundOn; $('#soundBtn').textContent = soundOn ? '🔊' : '🔇'; if (soundOn) sfx('reveal'); });
   $('#closeWin').addEventListener('click', () => $('#bigWin').classList.remove('show'));
   $('#bigWin').addEventListener('click', e => { if (e.target.id === 'bigWin') e.currentTarget.classList.remove('show'); });
   $('#rankBtn').addEventListener('click', async () => { await loadLeaderboard(1); $('#leaderModal').classList.add('show'); });
-  window._switchRank = function(sort) {
-    rankSort = sort;
-    $('#rankSortLevel').css({background: sort==='level'?'#d71936':'#f0dfc7', color: sort==='level'?'#fff':'#7a4e35'});
-    $('#rankSortCoins').css({background: sort==='coins'?'#d71936':'#f0dfc7', color: sort==='coins'?'#fff':'#7a4e35'});
+  document.querySelectorAll('[data-rank-sort]').forEach(btn => btn.addEventListener('click', () => {
+    rankSort = btn.dataset.rankSort;
+    document.querySelectorAll('[data-rank-sort]').forEach(b => b.classList.toggle('active', b.dataset.rankSort === rankSort));
     leaderboardPage = 1;
     loadLeaderboard(1);
-  };
+  }));
+  $('#giftBtn').addEventListener('click', async () => {
+    if (!state.dailyGiftAvailable) return;
+    $('#giftBtn').disabled = true;
+    try {
+      const data = await api('/api/daily-gift', {method:'POST', body:'{}'});
+      applyServer(data);
+      toast(`每日好运金 +${data.gift} 爽币`);
+      burst(window.innerWidth - 130, 70, 45);
+    } catch (e) {
+      toast(e.message);
+      renderChrome();
+    }
+  });
   $('#closeRank').addEventListener('click', () => $('#leaderModal').classList.remove('show'));
   $('#leaderModal').addEventListener('click', e => { if (e.target.id === 'leaderModal') e.currentTarget.classList.remove('show'); });
   $('#playerBtn').addEventListener('click', () => toast(`${state.nickname} · ${state.playerId}`));
   $('#ruleBtn').addEventListener('click', () => {
     const info = RULES[current.id] || ['暂无说明', '暂无'];
+    const fixedOdds = ['blackjack', 'dice', 'baccarat', 'twentyfour'].includes(current.id);
     $('#ruleTitle').textContent = current.icon + ' ' + current.name;
-    $('#ruleContent').innerHTML = `<h3>怎么玩</h3><p>${info[0]}</p><h3>奖项设置</h3><p>${info[1]}</p><div class="odds">通用奖池：约 61.4% 未中奖、23% 回本、10% 小奖、4% 中奖、0.9% 大奖、0.08% 超级大奖(1万)、0.015% 钻石大奖(10万)、0.005% 传说大奖(100万)。连刮幸运最多只提高回本机会。</div>`;
+    $('#ruleContent').innerHTML = `<h3>怎么玩</h3><p>${info[0]}</p><h3>奖项设置</h3><p><b>当前票价：${current.cost} 爽币。</b> ${info[1].replace(/^票价\s*\d+；?/, '')}</p><div class="odds">${fixedOdds ? '这是操作型玩法，输赢由你的选择和牌面决定，不使用通用随机奖池。' : '通用奖池：约 61.4% 未中奖、23% 回本、10% 小奖、4% 中奖、0.9% 大奖、0.08% 超级大奖(1万)、0.015% 钻石大奖(10万)、0.005% 传说大奖(100万)。连刮幸运最多只提高整体中奖机会。'}</div>`;
     $('#ruleModal').classList.add('show');
   });
   $('#closeRule').addEventListener('click', () => $('#ruleModal').classList.remove('show'));
@@ -1420,6 +1604,7 @@
   let recordsTotal = 0;
   async function init() {
     sizeFx(); renderShop(); renderChrome();
+    await loadCatalog();
     loadLeaderboard(1);
     if (authToken) {
       try {
