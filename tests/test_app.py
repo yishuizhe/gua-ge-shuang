@@ -38,6 +38,18 @@ class GameLogicTests(unittest.TestCase):
                     blue = payload["_blueMatch"]
                     self.assertEqual(bool(win), matches >= 3 or blue)
 
+    def test_redpacket_lucky_packet_is_private_and_consistent(self):
+        for _ in range(250):
+            payload, win = app.generate_ticket("redpacket", 0, "GS-TEST")
+            self.assertEqual(len(payload["packets"]), 12)
+            self.assertEqual(len({packet["id"] for packet in payload["packets"]}), 12)
+            public_payload = {key: value for key, value in payload.items() if not key.startswith("_")}
+            self.assertNotIn("_luckyIndex", public_payload)
+            if win:
+                self.assertIn(payload["_luckyIndex"], range(12))
+            else:
+                self.assertEqual(payload["_luckyIndex"], -1)
+
     def test_probability_config_rejects_more_than_one_hundred_percent(self):
         with self.assertRaises(ValueError):
             app.set_config({"lose": 0.8, "break_even": 0.5})
@@ -51,6 +63,32 @@ class GameLogicTests(unittest.TestCase):
         self.assertEqual(app.validate_24_answer("(1+2+3)*4", [1, 2, 3, 4]), (True, "回答正确"))
         self.assertFalse(app.validate_24_answer("6*4", [1, 2, 3, 4])[0])
         self.assertFalse(app.validate_24_answer("__import__('os')", [1, 2, 3, 4])[0])
+
+    def test_player_achievements_are_derived_from_stats(self):
+        with app.db() as conn:
+            conn.execute(
+                """INSERT INTO players(public_id,nickname,token_hash,coins,xp,level,played,wins,best,streak,seen,created_at,updated_at)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    "GS-ACH",
+                    "成就测试",
+                    app.token_hash("token"),
+                    1200,
+                    500,
+                    5,
+                    12,
+                    4,
+                    1500,
+                    3,
+                    json.dumps(list(app.TYPES)[:5]),
+                    1,
+                    1,
+                ),
+            )
+            player = conn.execute("SELECT * FROM players WHERE public_id='GS-ACH'").fetchone()
+        data = app.player_dict(player)
+        unlocked = {achievement["id"] for achievement in data["achievements"]}
+        self.assertTrue({"first_ticket", "first_win", "collector", "hot_streak", "big_winner", "level_five", "coin_stack"} <= unlocked)
 
 
 class ApiTests(unittest.TestCase):
@@ -114,6 +152,7 @@ class ApiTests(unittest.TestCase):
             "twentyfour": ("_numbers",),
             "pusher": ("_targetX", "_tolerance"),
             "claw": ("_winningSlot", "isWinner"),
+            "redpacket": ("_luckyIndex", "luckyPacket"),
         }.items()):
             _, registered = self.request("/api/register", {"nickname": f"保密测试{index}"})
             token = registered["token"]
@@ -124,7 +163,7 @@ class ApiTests(unittest.TestCase):
     def test_catalog_contains_restored_arcade_games(self):
         _, catalog = self.request("/api/catalog")
         game_ids = {game["id"] for game in catalog["games"]}
-        self.assertTrue({"twentyfour", "pusher", "claw"} <= game_ids)
+        self.assertTrue({"twentyfour", "pusher", "claw", "redpacket"} <= game_ids)
 
 
 if __name__ == "__main__":
