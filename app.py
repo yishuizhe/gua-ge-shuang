@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get("SCRATCH_DB", ROOT / "data" / "scratch_game.db"))
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8089"))
-APP_VERSION = "2.4.0"
+APP_VERSION = "2.5.0"
 
 # ---------- admin credentials ----------
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
@@ -61,9 +61,69 @@ TYPES = {
     "slots": {"name": "水果机", "icon": "🍒", "cost": 5, "kind": "slots"},
     "pinball": {"name": "弹珠台", "icon": "🔮", "cost": 8, "kind": "pinball"},
     "wheel": {"name": "幸运转盘", "icon": "🎡", "cost": 10, "kind": "wheel"},
+    "redpacket": {"name": "红包雨", "icon": "🧧", "cost": 12, "kind": "redpacket"},
 }
 
 SUPER_PRIZES = [1000000, 100000, 10000]  # legend, diamond, super
+
+ACHIEVEMENTS = [
+    {
+        "id": "first_ticket",
+        "name": "初来好运街",
+        "icon": "🎟️",
+        "desc": "完成第 1 张票",
+        "check": lambda row, seen: row["played"] >= 1,
+    },
+    {
+        "id": "first_win",
+        "name": "开门见喜",
+        "icon": "🏅",
+        "desc": "赢得任意一张票",
+        "check": lambda row, seen: row["wins"] >= 1,
+    },
+    {
+        "id": "collector",
+        "name": "玩法收藏家",
+        "icon": "🧩",
+        "desc": "体验 5 种玩法",
+        "check": lambda row, seen: len(seen) >= 5,
+    },
+    {
+        "id": "arcade_master",
+        "name": "街机熟手",
+        "icon": "🕹️",
+        "desc": "体验全部玩法",
+        "check": lambda row, seen: len(seen) >= len(TYPES),
+    },
+    {
+        "id": "hot_streak",
+        "name": "手气连红",
+        "icon": "🔥",
+        "desc": "达成 3 连中",
+        "check": lambda row, seen: row["streak"] >= 3,
+    },
+    {
+        "id": "big_winner",
+        "name": "大奖猎手",
+        "icon": "💎",
+        "desc": "单票赢得 1000+ 爽币",
+        "check": lambda row, seen: row["best"] >= 1000,
+    },
+    {
+        "id": "level_five",
+        "name": "好运常客",
+        "icon": "⭐",
+        "desc": "达到 5 级",
+        "check": lambda row, seen: row["level"] >= 5,
+    },
+    {
+        "id": "coin_stack",
+        "name": "小金库",
+        "icon": "🪙",
+        "desc": "持有 1000+ 爽币",
+        "check": lambda row, seen: row["coins"] >= 1000,
+    },
+]
 
 
 def db():
@@ -206,9 +266,23 @@ def token_hash(token):
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def achievements_for(row, seen):
+    unlocked = []
+    for achievement in ACHIEVEMENTS:
+        if achievement["check"](row, seen):
+            unlocked.append({
+                "id": achievement["id"],
+                "name": achievement["name"],
+                "icon": achievement["icon"],
+                "desc": achievement["desc"],
+            })
+    return unlocked
+
+
 def player_dict(row, include_private=True):
     raw_seen = json.loads(row["seen"] or "[]")
     valid_seen = [s for s in raw_seen if s in TYPES]
+    achievements = achievements_for(row, valid_seen)
     data = {
         "playerId": row["public_id"],
         "nickname": row["nickname"],
@@ -222,6 +296,9 @@ def player_dict(row, include_private=True):
         "seen": valid_seen,
         "totalTypes": len(TYPES),
         "dailyGiftAvailable": row["last_gift_day"] != china_day(),
+        "achievements": achievements,
+        "achievementCount": len(achievements),
+        "totalAchievements": len(ACHIEVEMENTS),
     }
     if not include_private:
         return {
@@ -429,9 +506,33 @@ def generate_ticket(ticket_type, streak, player_public_id=None, cost_override=No
             "maxPrize": 1000000,
         }, win
 
+    if kind == "redpacket":
+        win, prize_tier = roll_payout(ticket_type, streak, player_public_id, cost)
+        packet_count = 12
+        lucky_index = random.randrange(packet_count) if win else -1
+        packets = [
+            {
+                "id": index,
+                "x": round(0.08 + (index % 4) * 0.28 + random.uniform(-0.035, 0.035), 3),
+                "delay": round((index // 4) * 0.22 + random.uniform(0, 0.16), 2),
+                "speed": round(random.uniform(0.72, 1.15), 2),
+                "size": random.choice([0.9, 1.0, 1.1, 1.2]),
+                "label": random.choice(["福", "喜", "财", "旺", "顺"]),
+            }
+            for index in range(packet_count)
+        ]
+        random.shuffle(packets)
+        return {
+            "mode": "redpacket",
+            "packets": packets,
+            "_luckyIndex": lucky_index,
+            "resultText": "红包雨落下，点中本局福袋即可中奖",
+            "prizeTier": prize_tier,
+            "maxPrize": 1000000,
+        }, win
+
     # ---- Blackjack (21点) ----
     if kind == "blackjack":
-        cost = TYPES[ticket_type]["cost"]
         deck = [1,2,3,4,5,6,7,8,9,10,10,10,10] * 4
         random.shuffle(deck)
         player_hand = [deck.pop(), deck.pop()]
@@ -1090,6 +1191,15 @@ class Handler(SimpleHTTPRequestHandler):
                         if slot != payload["_winningSlot"]:
                             win = 0
 
+                    elif payload.get("mode") == "redpacket":
+                        try:
+                            packet = int(data.get("packet", -1))
+                        except (TypeError, ValueError):
+                            packet = -1
+                        payload["_pickedPacket"] = packet
+                        if packet != payload["_luckyIndex"]:
+                            win = 0
+
                     # blackjack: handle hit/stand
                     elif payload.get("mode") == "blackjack":
                         action = str(data.get("action", "stand"))
@@ -1161,7 +1271,7 @@ class Handler(SimpleHTTPRequestHandler):
                             correct = (bet == "big" and payload["_isBig"]) or (bet == "small" and not payload["_isBig"])
                         cost = int(payload.get("_cost", TYPES[ticket_row["ticket_type"]]["cost"]))
                         if correct:
-                            win = cost * 2  # 猜中 = 2倍票价
+                            win = cost * (6 if bet == "triple" else 2)
                         else:
                             win = 0
 
@@ -1244,6 +1354,9 @@ class Handler(SimpleHTTPRequestHandler):
                 resp["playerTotal"] = final_payload.get("_playerTotal", 0)
                 resp["bankerTotal"] = final_payload.get("_bankerTotal", 0)
                 resp["result"] = final_payload.get("_result", "")
+            elif final_payload.get("mode") == "redpacket":
+                resp["pickedPacket"] = final_payload.get("_pickedPacket", -1)
+                resp["luckyPacket"] = final_payload.get("_luckyIndex", -1)
             return self.send_json(resp)
 
         return self.send_json({"error": "not_found"}, HTTPStatus.NOT_FOUND)

@@ -191,6 +191,18 @@
     .wheel-container{position:relative;width:300px;height:300px;margin:10px auto}
     .wheel-pointer{position:absolute;top:-10px;left:50%;transform:translateX(-50%);font-size:30px;z-index:2;filter:drop-shadow(0 3px 2px rgba(0,0,0,.4))}
     .wheel-svg{width:300px;height:300px;transition:transform 4s cubic-bezier(.17,.67,.12,.99)}
+    .redpacket-rain{position:relative;height:360px;border-radius:20px;overflow:hidden;background:linear-gradient(180deg,#24142d,#5b1323 58%,#8b1d22)}
+    .redpacket-rain:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent 0 24%,rgba(255,255,255,.06) 25% 26%,transparent 27% 49%,rgba(255,255,255,.06) 50% 51%,transparent 52% 74%,rgba(255,255,255,.06) 75% 76%,transparent 77%);opacity:.8}
+    .redpacket{position:absolute;top:-86px;left:calc(var(--x) * 100%);width:58px;height:72px;border:0;border-radius:10px;background:linear-gradient(160deg,#ff364f,#a90e22);color:#ffe680;font-weight:1000;font-size:22px;cursor:pointer;box-shadow:0 10px 22px rgba(0,0,0,.22),inset 0 0 0 2px rgba(255,224,96,.38);animation:packetFall var(--dur) var(--delay) ease-in forwards;transform:translateX(-50%) scale(var(--size))}
+    .redpacket:before{content:"";position:absolute;left:9px;right:9px;top:8px;height:14px;border-radius:0 0 20px 20px;background:#ffd65a}
+    .redpacket:after{content:"";position:absolute;left:50%;top:4px;width:18px;height:18px;border-radius:50%;background:#8f0b1b;transform:translateX(-50%);box-shadow:inset 0 0 0 3px #ffd65a}
+    .redpacket span{position:relative;z-index:1;display:block;margin-top:19px}
+    .redpacket:hover{filter:brightness(1.08)}
+    .redpacket.picked{outline:3px solid #fff;filter:brightness(1.18)}
+    .redpacket.lucky{background:linear-gradient(160deg,#ffd75a,#ff9f1c);color:#891022;animation:none;top:270px}
+    .redpacket[disabled]{cursor:default}
+    .redpacket-result{min-height:34px;margin-top:12px;font-weight:900;color:#ffd65a}
+    @keyframes packetFall{0%{top:-86px;opacity:0;transform:translateX(-50%) scale(var(--size)) rotate(-9deg)}12%{opacity:1}100%{top:270px;opacity:1;transform:translateX(-50%) scale(var(--size)) rotate(7deg)}}
     /* Admin */
     .admin-panel{max-width:700px;text-align:left}.identity-modal .identity-card.admin-panel{max-height:none;overflow-y:visible}
     .admin-panel h2{color:white;text-align:center}
@@ -230,6 +242,11 @@
     .collection{display:flex;gap:7px;padding:2px 14px 9px;flex-wrap:wrap}
     .medal{width:37px;height:37px;border-radius:50%;display:grid;place-items:center;background:#eadac4;filter:grayscale(1);opacity:.5}
     .medal.on{filter:none;opacity:1;background:#ffd45e;box-shadow:0 3px 10px rgba(204,126,0,.2)}
+    .achievement-list{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:2px 12px 12px}
+    .achievement{min-height:62px;border-radius:13px;background:#fff3cc;border:1px solid #efd49c;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:6px 4px}
+    .achievement-icon{font-size:21px;line-height:1}
+    .achievement-name{font-size:9px;font-weight:900;color:#7a4e35;margin-top:5px;line-height:1.2}
+    .achievement-empty{grid-column:1/-1;color:#b3937e;font-size:12px;text-align:center;padding:10px 4px}
     .rank-list{padding:0 10px 10px}.rank-row{display:grid;grid-template-columns:27px 1fr auto;align-items:center;gap:7px;padding:8px 5px;border-bottom:1px solid #f0dfc7}
     .rank-no{font-size:12px;font-weight:1000;color:#b78b65;text-align:center}.rank-no.top{font-size:18px}
     .rank-name{font-size:11px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rank-name small{display:block;font-size:8px;color:#a98772;margin-top:3px;font-weight:600}
@@ -337,6 +354,8 @@
           <div class="level-row"><div class="level-badge" id="levelBadge">1</div><div class="level-info"><b id="levelName">刮票新手</b><small id="xpText">0 / 100 经验</small></div></div>
           <div class="progress"><i id="xpBar"></i></div>
         </div>
+        <div class="panel-title">成就徽章 <small id="achievementCount">0 / 8</small></div>
+        <div class="achievement-list" id="achievements"></div>
         <div class="panel-title">好运图鉴 <small id="collectionCount">0 / 12</small></div>
         <div class="collection" id="collection"></div>
         <div class="panel-title">中奖记录 <small id="recordsInfo">最近 10 条</small></div>
@@ -387,6 +406,7 @@
     {id:'slots',name:'水果机',icon:'🍒',cost:5,color:'#ff9ff3',banner:'linear-gradient(135deg,#5f27cd,#341f97)',rule:'三列转轮旋转，图案匹配即中奖',kind:'slots',cat:'街机'},
     {id:'pinball',name:'弹珠台',icon:'🔮',cost:8,color:'#48dbfb',banner:'linear-gradient(135deg,#0abde3,#0984e3)',rule:'发射弹珠落入奖池，不同奖池不同奖金',kind:'pinball',cat:'街机'},
     {id:'wheel',name:'幸运转盘',icon:'🎡',cost:10,color:'#feca57',banner:'linear-gradient(135deg,#ff9f43,#ee5a24)',rule:'旋转大转盘，指针停在哪个区域就得哪个奖',kind:'wheel',cat:'街机'},
+    {id:'redpacket',name:'红包雨',icon:'🧧',cost:12,color:'#ff6b6b',banner:'linear-gradient(135deg,#d71936,#ff9f1c)',rule:'红包落下时点选一个，命中本局福袋即中奖',kind:'redpacket',cat:'街机'},
   ];
   const RULES = {
     xiangfeng:['刮开 30 个图案。出现"喜"获得下方奖金；出现"囍"获得下方奖金的 2 倍。','票价 10；回本 10；小奖 20；中奖 50；大奖 100；最高奖可达 100 万！'],
@@ -397,18 +417,19 @@
     baccarat:['开局后先押“闲”“庄”或“和”，提交选择后服务器才揭晓双方牌面。点数取个位，更大者赢。','票价 25；押闲或庄猜中返 50；押和猜中返 200。'],
     ssq:['系统自动选 6 个红球 + 1 个蓝球。开奖后根据匹配球数获得奖金。','票价 2；回本 2；小奖 4；中奖 10；大奖 20；最高奖可达 100 万！'],
     blackjack:['庄家发 2 张牌，你看牌后选择"要牌"或"停牌"。接近 21 点但不能超过，超过则爆牌。','票价 20；回本 20；小奖 40；中奖 100；大奖 200；最高奖可达 100 万！'],
-    dice:['三颗骰子，先猜“大”(11-17)或“小”(4-10)，提交后服务器才揭晓骰子。豹子(三个相同)时大小都不中。','票价 10；猜中返 20，猜错为 0。'],
+    dice:['三颗骰子，先猜“大”(11-17)、“小”(4-10)或“豹子”(三颗相同)，提交后服务器才揭晓骰子。豹子时大小都不中。','票价 10；猜中大小返 20，猜中豹子返 60，猜错为 0。'],
     twentyfour:['四张牌必须各用一次，只能使用加、减、乘、除和括号，把结果算成 24。','票价 10；答对返 50，答错为 0。'],
     pusher:['拖动准星选择投币位置。投币落点越接近服务器本局生成的有效推动区，越可能拿到本局奖池奖金。','票价 10；未中奖 0；回本和大奖按通用奖池结算。'],
     claw:['拖动机械爪瞄准一只娃娃，再按抓取。中奖娃娃由服务器预先密封生成，选择提交后才结算。','票价 20；抓空为 0；抓中按通用奖池结算。'],
     slots:['三列转轮旋转后停止。三个相同图案中大奖，两个相同中小奖。','票价 5；回本 5；小奖 10；中奖 25；大奖 50；最高奖可达 100 万！'],
     pinball:['弹珠从顶部下落经过随机碰撞落入底部奖池。不同奖池奖金不同。','票价 8；回本 8；小奖 16；中奖 40；大奖 80；最高奖可达 100 万！'],
     wheel:['10格转盘旋转，指针最终指向某个区域即为该区域奖金。','票价 10；回本 10；小奖 20；中奖 50；大奖 100；最高奖可达 100 万！'],
+    redpacket:['红包雨开始后，选择一个正在落下的红包。服务器预先密封本局福袋，点中才可获得本局奖池。','票价 12；回本 12；小奖 24；中奖 60；大奖 120；最高奖可达 100 万！'],
   };
   const TREASURES = [['金元宝','💰'],['翡翠','💎'],['如意','🪄'],['红包','🧧'],['铜钱','🪙']];
   const TOKEN_KEY = 'gua-shuang-player-token';
   let authToken = localStorage.getItem(TOKEN_KEY) || '';
-  let state = {coins:200,xp:0,level:1,played:0,wins:0,best:0,streak:0,current:'xiangfeng',records:[],seen:[],nickname:'',playerId:'',dailyGiftAvailable:false};
+  let state = {coins:200,xp:0,level:1,played:0,wins:0,best:0,streak:0,current:'xiangfeng',records:[],seen:[],achievements:[],achievementCount:0,totalAchievements:8,nickname:'',playerId:'',dailyGiftAvailable:false};
   let leaderboard = [], leaderboardPage = 1, leaderboardPages = 1, rankSort = 'level';
   let recordsPage = 1, recordsPages = 1;
   let current = TYPES.find(t => t.id === state.current) || TYPES[0];
@@ -506,11 +527,17 @@
     $('#levelName').textContent = names[Math.min(names.length - 1, state.level - 1)];
     $('#xpText').textContent = within + ' / 100 经验';
     $('#xpBar').style.width = Math.min(100, within) + '%';
+    const seen = state.seen || [];
+    const achievements = state.achievements || [];
     const totalT = state.totalTypes || TYPES.length;
-    $('#missionText').textContent = state.seen.length + ' / ' + totalT;
-    $('#missionBar').style.width = (state.seen.length / totalT * 100) + '%';
-    $('#collectionCount').textContent = state.seen.length + ' / ' + totalT;
-    $('#collection').innerHTML = TYPES.map(t => `<span class="medal ${state.seen.includes(t.id) ? 'on' : ''}" title="${t.name}">${t.icon}</span>`).join('');
+    $('#missionText').textContent = seen.length + ' / ' + totalT;
+    $('#missionBar').style.width = (seen.length / totalT * 100) + '%';
+    $('#achievementCount').textContent = `${state.achievementCount ?? achievements.length} / ${state.totalAchievements || 8}`;
+    $('#achievements').innerHTML = achievements.length
+      ? achievements.slice(-8).map(a => `<div class="achievement" title="${escapeHtml(a.desc)}"><div class="achievement-icon">${a.icon}</div><div class="achievement-name">${escapeHtml(a.name)}</div></div>`).join('')
+      : '<div class="achievement-empty">完成玩法后解锁徽章</div>';
+    $('#collectionCount').textContent = seen.length + ' / ' + totalT;
+    $('#collection').innerHTML = TYPES.map(t => `<span class="medal ${seen.includes(t.id) ? 'on' : ''}" title="${t.name}">${t.icon}</span>`).join('');
     renderRecords();
     renderRanks();
     $('#recordsInfo').textContent = `共 ${recordsTotal || state.records.length} 条 · 第 ${recordsPage}/${recordsPages} 页`;
@@ -688,6 +715,7 @@
     else if (ticket.mode === 'slots') renderSlots();
     else if (ticket.mode === 'pinball') renderPinball();
     else if (ticket.mode === 'wheel') renderWheel();
+    else if (ticket.mode === 'redpacket') renderRedpacket();
   }
 
   function render24() {
@@ -765,6 +793,41 @@
       const start=performance.now();
       function animate(now){const t=(now-start)/1400;if(t<.45){clawY=t/.45*170;}else if(t<.62){clawY=170;closed=true;}else if(t<1){clawY=(1-t)/.38*170;}else{clawY=0;draw();finishTicket({slot:chosen});return;}draw();requestAnimationFrame(animate);}
       requestAnimationFrame(animate);
+    });
+  }
+
+  function renderRedpacket() {
+    const packets = ticket.packets || [];
+    $('#stage').innerHTML = `<div class="arcade"><h2>🧧 红包雨</h2>
+      <div class="arcade-sub">红包落下时点一个，本局福袋由服务器密封</div>
+      <div class="redpacket-rain" id="redpacketRain">
+        ${packets.map(packet => `<button class="redpacket" data-packet="${packet.id}" style="--x:${packet.x};--delay:${packet.delay}s;--dur:${(2.9 / packet.speed).toFixed(2)}s;--size:${packet.size}"><span>${packet.label}</span></button>`).join('')}
+      </div>
+      <div id="result" class="redpacket-result">点中一个红包完成本局</div></div>`;
+    $('#redpacketRain').addEventListener('click', async event => {
+      const btn = event.target.closest('[data-packet]');
+      if (!btn || ticket.done) return;
+      const picked = Number(btn.dataset.packet);
+      document.querySelectorAll('.redpacket').forEach(item => item.disabled = true);
+      btn.classList.add('picked');
+      try {
+        const response = await finishTicket({ packet: picked });
+        if (!response) {
+          document.querySelectorAll('.redpacket').forEach(item => item.disabled = false);
+          btn.classList.remove('picked');
+          return;
+        }
+        document.querySelectorAll('.redpacket').forEach(item => {
+          if (Number(item.dataset.packet) === response.luckyPacket) item.classList.add('lucky');
+        });
+        if (!response.win && response.luckyPacket >= 0) {
+          $('#result').textContent = `福袋藏在 ${response.luckyPacket + 1} 号红包，这次擦肩而过`;
+        }
+        setTimeout(showPreview, 2300);
+      } catch (e) {
+        document.querySelectorAll('.redpacket').forEach(item => item.disabled = false);
+        btn.classList.remove('picked');
+      }
     });
   }
 
@@ -867,13 +930,14 @@
 
   // ---- Dice (猜大小) ----
   function renderDice() {
-    $('#stage').innerHTML = `<div class="arcade"><h2>🎲 猜大小</h2><div class="arcade-sub">三颗骰子，猜大(11-17)还是小(4-10)</div>
+    $('#stage').innerHTML = `<div class="arcade"><h2>🎲 猜大小</h2><div class="arcade-sub">三颗骰子，猜大、猜小或搏豹子</div>
       <div style="display:flex;gap:30px;justify-content:center;margin:30px 0" id="diceArea">
         <div style="font-size:70px">🎲</div><div style="font-size:70px">🎲</div><div style="font-size:70px">🎲</div>
       </div>
-      <div style="margin-top:15px">
-        <button class="pusher-btn" id="diceBig" style="background:#e74c3c;margin-right:8px;font-size:28px;padding:15px 40px">大<br><small style="font-size:11px">11-17</small></button>
-        <button class="pusher-btn" id="diceSmall" style="background:#3498db;font-size:28px;padding:15px 40px">小<br><small style="font-size:11px">4-10</small></button>
+      <div style="margin-top:15px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="pusher-btn dice-bet" id="diceBig" style="background:#e74c3c;font-size:24px;padding:14px 28px">大<br><small style="font-size:11px">11-17 · 2倍</small></button>
+        <button class="pusher-btn dice-bet" id="diceSmall" style="background:#3498db;font-size:24px;padding:14px 28px">小<br><small style="font-size:11px">4-10 · 2倍</small></button>
+        <button class="pusher-btn dice-bet" id="diceTriple" style="background:#f1c40f;color:#5b2500;font-size:24px;padding:14px 28px">豹子<br><small style="font-size:11px">三同号 · 6倍</small></button>
       </div>
       <div id="diceResult" style="margin-top:15px;font-weight:900;font-size:16px"></div></div>`;
     const diceMap = {1:'⚀',2:'⚁',3:'⚂',4:'⚃',5:'⚄',6:'⚅'};
@@ -882,18 +946,23 @@
       area.innerHTML = nums.map(n => `<div style="font-size:70px">${diceMap[n]}</div>`).join('');
     }
     async function bet(choice) {
-      $('#diceBig').disabled = true; $('#diceSmall').disabled = true;
+      document.querySelectorAll('.dice-bet').forEach(btn => btn.disabled = true);
       try {
         const response = await finishTicket({ bet: choice });
+        if (!response) {
+          document.querySelectorAll('.dice-bet').forEach(btn => btn.disabled = false);
+          return;
+        }
         showDice(response.dice);
         const resultDiv = $('#diceResult');
         if (response.isTriple) resultDiv.textContent = `🎲 ${response.total}点 豹子！通杀`;
         else resultDiv.textContent = `🎲 ${response.total}点 (${response.total >= 11 ? '大' : '小'})`;
         setTimeout(() => { if (ticket && !ticket.done) renderTicket(); else showPreview(); }, 2000);
-      } catch (e) { $('#diceBig').disabled = false; $('#diceSmall').disabled = false; }
+      } catch (e) { document.querySelectorAll('.dice-bet').forEach(btn => btn.disabled = false); }
     }
     $('#diceBig').addEventListener('click', () => bet('big'));
     $('#diceSmall').addEventListener('click', () => bet('small'));
+    $('#diceTriple').addEventListener('click', () => bet('triple'));
   }
 
   // ---- SSQ (双色球) ----
@@ -1523,8 +1592,9 @@
     const tab = e.target.closest('[data-category]');
     if (!tab) return;
     activeCategory = tab.dataset.category;
-    const first = TYPES.find(t => t.cat === activeCategory);
-    if (first && current.cat !== activeCategory) current = first;
+    const first = TYPES.find(t => t.cat === activeCategory && t.enabled !== false);
+    if (!first) return toast('这个分类暂时没有开放玩法');
+    if (current.cat !== activeCategory || current.enabled === false) current = first;
     renderShop();
     showPreview();
   });
