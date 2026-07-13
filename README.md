@@ -1,5 +1,8 @@
 # 刮个爽
 
+[![CI](https://github.com/yishuizhe/gua-ge-shuang/actions/workflows/ci.yml/badge.svg)](https://github.com/yishuizhe/gua-ge-shuang/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 一个纯娱乐的多人刮刮乐网页游戏。玩家输入昵称即可获得自动生成的玩家 ID，无需密码注册。
 
 ## 功能
